@@ -3,32 +3,22 @@
 from bzrc import BZRC, Command
 import sys, math, time
 
-# An incredibly simple agent.  All we do is find the closest enemy tank, drive
-# towards it, and shoot.  Note that if friendly fire is allowed, you will very
-# often kill your own tanks with this code.
-
-#################################################################
-# NOTE TO STUDENTS
-# This is a starting point for you.  You will need to greatly
-# modify this code if you want to do anything useful.  But this
-# should help you to know how to interact with BZRC in order to
-# get the information you need.
-# 
-# After starting the bzrflag server, this is one way to start
-# this code:
-# python agent0.py [hostname] [port]
-# 
-# Often this translates to something like the following (with the
-# port name being printed out by the bzrflag server):
-# python agent0.py localhost 49857
-#################################################################
-
+def normalize_angle(angle):
+    '''Make any angle be between +/- pi.'''
+    angle -= 2 * math.pi * int (angle / (2 * math.pi))
+    if angle <= -math.pi:
+        angle += 2 * math.pi
+    elif angle > math.pi:
+        angle -= 2 * math.pi
+    return angle
+    
 class Agent(object):
 
     def __init__(self, bzrc):
         self.bzrc = bzrc
         self.constants = self.bzrc.get_constants()
         self.commands = []
+        self.tanks = {tank.index:Tank(bzrc, tank) for tank in self.bzrc.read_mytanks()}
 
     def tick(self, time_diff):
         '''Some time has passed; decide what to do next'''
@@ -46,11 +36,16 @@ class Agent(object):
 
         # Decide what to do with each of my tanks
         for bot in mytanks:
-            self.attack_enemies(bot)
+            self.tanks[bot.index].update(bot)
+            # Figure out the desired potential field magic to give it a vector. Make one up for now
+            delta_x = 5
+            delta_y = 10
+            self.commands.append(self.tanks[bot.index].get_desired_movement_command(delta_x, delta_y, time_diff))
 
         # Send the commands to the server
         results = self.bzrc.do_commands(self.commands)
 
+    """
     def attack_enemies(self, bot):
         '''Find the closest enemy and chase it, shooting as you go'''
         best_enemy = None
@@ -71,19 +66,12 @@ class Agent(object):
     def move_to_position(self, bot, target_x, target_y):
         target_angle = math.atan2(target_y - bot.y,
                 target_x - bot.x)
-        relative_angle = self.normalize_angle(target_angle - bot.angle)
+        relative_angle = normalize_angle(target_angle - bot.angle)
         command = Command(bot.index, 1, 2 * relative_angle, True)
         self.commands.append(command)
-
-    def normalize_angle(self, angle):
-        '''Make any angle be between +/- pi.'''
-        angle -= 2 * math.pi * int (angle / (2 * math.pi))
-        if angle <= -math.pi:
-            angle += 2 * math.pi
-        elif angle > math.pi:
-            angle -= 2 * math.pi
-        return angle
-
+    """
+    
+    
 class Tank(object):
     
     def __init__(self, bzrc, tank):
