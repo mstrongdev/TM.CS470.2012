@@ -3,25 +3,94 @@
 from bzrc import BZRC, Command
 import sys, math, time
 
-# An incredibly simple agent.  All we do is find the closest enemy tank, drive
-# towards it, and shoot.  Note that if friendly fire is allowed, you will very
-# often kill your own tanks with this code.
+def normalize_angle(angle):
+    '''Make any angle be between +/- pi.'''
+    angle -= 2 * math.pi * int (angle / (2 * math.pi))
+    if angle <= -math.pi:
+        angle += 2 * math.pi
+    elif angle > math.pi:
+        angle -= 2 * math.pi
+    return angle
+def dist(pt1, pt2):
+    '''Calculate distance between two points'''
+    return math.sqrt((pt2[0] - pt1[0])**2 + (pt2[1] - pt1[1])**2)
 
-#################################################################
-# NOTE TO STUDENTS
-# This is a starting point for you.  You will need to greatly
-# modify this code if you want to do anything useful.  But this
-# should help you to know how to interact with BZRC in order to
-# get the information you need.
-# 
-# After starting the bzrflag server, this is one way to start
-# this code:
-# python agent0.py [hostname] [port]
-# 
-# Often this translates to something like the following (with the
-# port name being printed out by the bzrflag server):
-# python agent0.py localhost 49857
-#################################################################
+class PField(object):
+    '''A Potential Field. Parent Class.'''
+    # PUBLIC
+    def __init__(self, center=(0,0), radius=0, spread=100, strength=1, min_bound=None, max_bound=None, direction=None):
+        self.center = center
+        self.radius = radius
+        self.spread = spread
+        self.strength = strength
+        self.min_bound = min_bound
+        self.max_bound = max_bound
+        self.direction = direction
+    def update(self, center=None, radius=None, spread=None, strength=None, min_bound=None, max_bound=None, direction=None):
+        if center:
+            self.center = center
+        if radius:
+            self.radius = radius
+        if spread:
+            self.spread = spread
+        if strength:
+            self.strength = strength
+        if min_bound:
+            self.min_bound = min_bound
+        if max_bound:
+            self.max_bound = max_bound
+        if direction:
+            self.direction = direction
+    def get_delta(p):
+        return p
+    
+    # PRIVATE
+    def _attract(p):
+        d = dist(self.center, p)
+        theta = math.atan2((self.center[1]-p[1])/(self.center[0]-p[0]))
+        dx,dy = (0,0)
+        
+        # Position is inside the Goal.
+        if d < self.radius: 
+            pass
+        # Position is outside goal and inside spread.
+        elif self.radius <= d and d <= (self.radius+self.spread):
+            dx = self.strength * (d-self.radius) * math.cos(theta)
+            dy = self.strength * (d-self.radius) * math.sin(theta)
+        # Position is outside spread. Delta is at max strength.
+        else:
+            dx = self.strength * self.spread * math.cos(theta)
+            dy = self.strength * self.spread * math.sin(theta)
+        
+        return (dx,dy)
+
+    def _repulse(p):
+        d = dist(self.center, p)
+        theta = math.atan2((self.center[1]-p[1])/(self.center[0]-p[0]))
+        dx,dy = (0,0)
+        
+        # Position is inside the Goal.
+        if d < self.radius:
+            dx = -math.cos(theta) * float("inf")
+            dy = -math.sin(theta) * float("inf")
+        # Position is outside goal and inside spread.
+        elif self.radius <= d and d <= (self.radius+self.spread):
+            dx = self.strength * (self.spread + self.radius - d) * math.cos(theta)
+            dy = self.strength * (self.spread + self.radius - d) * math.sin(theta)
+        # Position is outside spread.
+        else:
+            pass
+        
+        return (dx,dy)
+
+    def _tangent(rotation, p):
+        pass
+    def _random(p):
+        pass
+    def _boundedUniform(p):
+        pass
+    def _boundedPerpendicular(p):
+        pass
 
 def normalize_angle(angle):
     '''Make any angle be between +/- pi.'''
@@ -91,7 +160,6 @@ class Agent(object):
         self.commands.append(command)
     """
     
-    
 class Tank(object):
     
     def __init__(self, bzrc, tank):
@@ -135,6 +203,7 @@ class Tank(object):
         self.previous_error_speed = error_speed
         
         return Command(self.index, send_speed, send_angle, 0)
+
 
 def main():
     # Process CLI arguments.
