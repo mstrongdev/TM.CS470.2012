@@ -11,6 +11,7 @@ def normalize_angle(angle):
     elif angle > math.pi:
         angle -= 2 * math.pi
     return angle
+    
 def dist(pt1, pt2):
     '''Calculate distance between two points'''
     return math.sqrt((pt2[0] - pt1[0])**2 + (pt2[1] - pt1[1])**2)
@@ -26,6 +27,7 @@ class PField(object):
         self.min_bound = min_bound
         self.max_bound = max_bound
         self.direction = direction
+        
     def update(self, center=None, radius=None, spread=None, strength=None, min_bound=None, max_bound=None, direction=None):
         if center:
             self.center = center
@@ -41,11 +43,12 @@ class PField(object):
             self.max_bound = max_bound
         if direction:
             self.direction = direction
-    def get_delta(p):
-        return p
+            
+    def get_force(self, position):
+        return position
     
     # PRIVATE
-    def _attract(p):
+    def _attract(self, p):
         d = dist(self.center, p)
         theta = math.atan2((self.center[1]-p[1])/(self.center[0]-p[0]))
         dx,dy = (0,0)
@@ -64,7 +67,7 @@ class PField(object):
         
         return (dx,dy)
 
-    def _repulse(p):
+    def _repulse(self, p):
         d = dist(self.center, p)
         theta = math.atan2((self.center[1]-p[1])/(self.center[0]-p[0]))
         dx,dy = (0,0)
@@ -83,31 +86,30 @@ class PField(object):
         
         return (dx,dy)
 
-    def _tangent(rotation, p):
+    def _tangent(self, rotation, p):
         pass
-    def _random(p):
+    def _random(self, p):
         pass
-    def _boundedUniform(p):
+    def _boundedUniform(self, p):
         pass
-    def _boundedPerpendicular(p):
+    def _boundedPerpendicular(self, p):
         pass
 
-def normalize_angle(angle):
-    '''Make any angle be between +/- pi.'''
-    angle -= 2 * math.pi * int (angle / (2 * math.pi))
-    if angle <= -math.pi:
-        angle += 2 * math.pi
-    elif angle > math.pi:
-        angle -= 2 * math.pi
-    return angle
+class ObstacleField(PField):
     
+    def __init__(self, obstacle):
+        pass
+    
+    def get_delta(self, position):
+        return position
+
 class Agent(object):
 
     def __init__(self, bzrc):
         self.bzrc = bzrc
         self.constants = self.bzrc.get_constants()
         self.commands = []
-        self.tanks = {tank.index:Tank(bzrc, tank) for tank in self.bzrc.read_mytanks()}
+        self.tanks = {tank.index:Tank(bzrc, tank) for tank in self.bzrc.get_mytanks()}
 
     def tick(self, time_diff):
         '''Some time has passed; decide what to do next'''
@@ -129,14 +131,14 @@ class Agent(object):
             # Figure out the desired potential field magic to give it a vector. Make one up for now
             delta_x = 5
             delta_y = 10
-            self.commands.append(self.tanks[bot.index].get_desired_movement_command(delta_x, delta_y, time_diff))
+            self.commands.append(self.tanks[bot.index].get_desired_movement_command((delta_x, delta_y), time_diff))
 
         # Send the commands to the server
         results = self.bzrc.do_commands(self.commands)
 
-    """
+    '''
     def attack_enemies(self, bot):
-        '''Find the closest enemy and chase it, shooting as you go'''
+        #Find the closest enemy and chase it, shooting as you go
         best_enemy = None
         best_dist = 2 * float(self.constants['worldsize'])
         for enemy in self.enemies:
@@ -158,7 +160,7 @@ class Agent(object):
         relative_angle = normalize_angle(target_angle - bot.angle)
         command = Command(bot.index, 1, 2 * relative_angle, True)
         self.commands.append(command)
-    """
+    '''
     
 class Tank(object):
     
@@ -182,12 +184,14 @@ class Tank(object):
         self.vy = tank.vy;
         self.angvel = tank.angvel;
     
-    def get_desired_movement_command(self, delta_x, delta_y, time_diff):
+    def get_desired_movement_command(self, movement_vector, time_diff):
+        delta_x, delta_y = movement_vector
+        
         target_angle = math.atan2(delta_y, delta_x)
         # clamp the speed to -1 to 1 (technically, 0 to 1)
-        target_speed = min(math.sqrt(math.pow(delta_x) + math.pow(delta_y)), 1.0)
+        target_speed = math.sqrt(math.pow(delta_x, 2) + math.pow(delta_y, 2))
         current_angle = self.angle;
-        current_speed = math.sqrt(math.pow(self.vy) + math.pow(self.vx))
+        current_speed = math.sqrt(math.pow(self.vy, 2) + math.pow(self.vx, 2))
         error_angle = target_angle - current_angle;
         error_speed = target_speed - current_speed;
         
@@ -196,8 +200,8 @@ class Tank(object):
         derivative_gain_angle = 0.1
         derivative_gain_speed = 0.1
         
-        send_angle = proportional_gain_angle * error_angle + derivative_gain_angle * ((error_angle - previous_error_angle) / time_diff)
-        send_speed = proportional_gain_speed * error_speed + derivative_gain_speed * ((error_speed - previous_error_speed) / time_diff)
+        send_angle = proportional_gain_angle * error_angle + derivative_gain_angle * ((error_angle - self.previous_error_angle) / time_diff)
+        send_speed = proportional_gain_speed * error_speed + derivative_gain_speed * ((error_speed - self.previous_error_speed) / time_diff)
         
         self.previous_error_angle = error_angle
         self.previous_error_speed = error_speed
@@ -214,10 +218,15 @@ def main():
         print >>sys.stderr, '%s: incorrect number of arguments' % execname
         print >>sys.stderr, 'usage: %s hostname port' % sys.argv[0]
         sys.exit(-1)
+        
+    print "Running Tyler & Morgan's Super Smart Flag Capturer"
 
     # Connect.
-    #bzrc = BZRC(host, int(port), debug=True)
-    bzrc = BZRC(host, int(port))
+    bzrc = BZRC(host, int(port), debug=True)
+    #bzrc = BZRC(host, int(port))
+    print "............................................"
+    bzrc.get_obstacles();
+    print "............................................"
 
     agent = Agent(bzrc)
 
@@ -226,6 +235,7 @@ def main():
     # Run the agent
     try:
         while True:
+            print "New loop"
             time_diff = time.time() - prev_time
             agent.tick(time_diff)
     except KeyboardInterrupt:
