@@ -15,6 +15,15 @@ def normalize_angle(angle):
 def dist(pt1, pt2):
     '''Calculate distance between two points'''
     return math.sqrt((pt2[0] - pt1[0])**2 + (pt2[1] - pt1[1])**2)
+    
+def midpoint(pt1, pt2):
+    return ((pt1[0] + pt2[0]) / 2, (pt1[1] + pt2[1]) / 2)
+    
+def add(vector1, vector2):
+    return (vector1[0] + vector2[0], vector1[1] + vector2[1])
+    
+def average(a, b, c, d):
+    return (a + b + c + d) / 4
 
 class PField(object):
     '''A Potential Field. Parent Class.'''
@@ -45,12 +54,12 @@ class PField(object):
             self.direction = direction
             
     def get_force(self, position):
-        return position
+        return (0,0)
     
     # PRIVATE
     def _attract(self, p, strength=None):
         d = dist(self.center, p)
-        theta = math.atan2((self.center[1]-p[1])/(self.center[0]-p[0]))
+        theta = math.atan2(self.center[1]-p[1], self.center[0]-p[0])
         scale = strength if strength else self.strength
         dx,dy = (0,0)
         
@@ -67,21 +76,37 @@ class PField(object):
             dy = scale * self.spread * math.sin(theta)
         
         return (dx,dy)
+        
+    def _gravity(self, p, strength=None):
+        d = dist(self.center, p)
+        theta = math.atan2(self.center[1]-p[1], self.center[0]-p[0])
+        scale = strength if strength else self.strength
+        dx,dy = (0, 0)
+        
+        # doesn't use radius or spread - just strength as a scale on the distance squared
+        if (d > 1):
+            dx = min(scale * (1 / d), 25) * math.cos(theta)
+            dy = min(scale * (1 / d), 25) * math.sin(theta)
+        else:
+            # If right on top of it, don't give a super huge movement force.
+            pass
+        
+        return (dx, dy)
 
     def _repulse(self, p, strength=None, theta_offset=0):
         d = dist(self.center, p)
-        theta = math.atan2((self.center[1]-p[1])/(self.center[0]-p[0])) + theta_offset
+        theta = math.atan2(self.center[1]-p[1], self.center[0]-p[0]) + theta_offset
         scale = strength if strength else self.strength
         dx,dy = (0,0)
         
         # Position is inside the Goal.
         if d < self.radius:
-            dx = -math.cos(theta) * float("inf")
-            dy = -math.sin(theta) * float("inf")
+            dx = -math.cos(theta) * 5 #float("inf")
+            dy = -math.sin(theta) * 5 #float("inf")
         # Position is outside goal and inside spread.
         elif self.radius <= d and d <= (self.radius+self.spread):
-            dx = scale * (self.spread + self.radius - d) * math.cos(theta)
-            dy = scale * (self.spread + self.radius - d) * math.sin(theta)
+            dx = -scale * (self.spread + self.radius - d) * math.cos(theta)
+            dy = -scale * (self.spread + self.radius - d) * math.sin(theta)
         # Position is outside spread.
         else:
             pass
@@ -90,7 +115,7 @@ class PField(object):
 
     def _tangent(self, p, clockwise, strength=None):
         theta_direction = math.pi/2 if clockwise else -math.pi/2  # TODO: Does this need to be flipped?
-        return _repulse(p, theta_direction, strength)
+        return self._repulse(p, strength, theta_direction)
     
     def _random(self, p, strength=None, time=0):
         scale = strength if strength else self.strength
@@ -113,10 +138,52 @@ class PField(object):
 class ObstacleField(PField):
     
     def __init__(self, obstacle):
-        pass
+        new_center = (average(obstacle[0][0], obstacle[1][0], obstacle[2][0], obstacle[3][0]), average(obstacle[0][1], obstacle[1][1], obstacle[2][1], obstacle[3][1]))
+        new_radius = min(dist(new_center, obstacle[0]), dist(new_center, obstacle[1]), dist(new_center, obstacle[2]), dist(new_center, obstacle[3]),
+            dist(new_center, midpoint(obstacle[0], obstacle[1])), dist(new_center, midpoint(obstacle[1], obstacle[2])),
+            dist(new_center, midpoint(obstacle[2], obstacle[3])), dist(new_center, midpoint(obstacle[3], obstacle[0])))
+        new_spread = max(dist(new_center, obstacle[0]), dist(new_center, obstacle[1]), dist(new_center, obstacle[2]), dist(new_center, obstacle[3])) - new_radius + 50
+        self.update(
+            center = new_center,
+            radius = new_radius,
+            spread = new_spread,
+            strength = .1)
     
-    def get_delta(self, position):
-        return position
+    def get_force(self, position):
+        return add(self._repulse(position), self._tangent(position, True))
+
+class FlagField(PField):
+    
+    def __init__(self, flag, agent):
+        self.update(
+            center = (flag.x, flag.y),
+            radius = float(agent.constants['flagradius']),
+            spread = 50,
+            strength = .1)
+            
+    def get_force(self, position):
+        return add(self._gravity(position, 1500), self._attract(position))
+        
+class BaseField(PField):
+    
+    def __init__(self, base):
+        new_center = (average(base.corner1_x, base.corner2_x, base.corner3_x, base.corner4_x), average(base.corner1_y, base.corner2_y, base.corner3_y, base.corner4_y))
+        corner1 = (base.corner1_x, base.corner1_y)
+        corner2 = (base.corner2_x, base.corner2_y)
+        corner3 = (base.corner3_x, base.corner3_y)
+        corner4 = (base.corner4_x, base.corner4_y)
+        new_radius = min(dist(new_center, corner1), dist(new_center, corner2), dist(new_center, corner3), dist(new_center, corner4),
+            dist(new_center, midpoint(corner1, corner2)), dist(new_center, midpoint(corner2, corner3)),
+            dist(new_center, midpoint(corner3, corner4)), dist(new_center, midpoint(corner4, corner1)))
+        new_spread = max(dist(new_center, corner1), dist(new_center, corner2), dist(new_center, corner3), dist(new_center, corner4)) - new_radius
+        self.update(
+            center = new_center,
+            radius = new_radius,
+            spread = new_spread,
+            strength = 50)
+            
+    def get_force(self, position):
+        return self._attract(position)
 
 class Agent(object):
 
@@ -125,6 +192,39 @@ class Agent(object):
         self.constants = self.bzrc.get_constants()
         self.commands = []
         self.tanks = {tank.index:Tank(bzrc, tank) for tank in self.bzrc.get_mytanks()}
+        
+        # Write the initial potential fields
+        fields = []
+        for obstacle in self.bzrc.get_obstacles():
+            fields.append(ObstacleField(obstacle))
+        for flag in self.bzrc.get_flags():
+            if (flag.color != self.constants['team']):
+                fields.append(FlagField(flag, self))
+        for base in self.bzrc.get_bases():
+            if (base.color == self.constants['team']):
+                #fields.append(BaseField(base))
+                pass
+        
+        with open("obstacle_fields.gpi", 'w+') as out:
+            # header
+            out.write("set title \"Potential Fields\"\nset xrange [-400.0 : 400.0]\nset yrange [-400.0 : 400.0]\nunset key\nset size square\nset terminal wxt size 1600,1600\nset term png\nset output \"output.png\"\n\n")
+            
+            # write the body of the fields
+            for x in range(-390, 390, 20):
+                for y in range(-390, 390, 20):
+                    vector = (0, 0)
+                    for field in fields:
+                        vector = add(vector, field.get_force((x, y)))
+                    if (vector[0] != float("inf") and vector[1] != float("-inf")):
+                        out.write("set arrow from {0}, {1} to {2}, {3}\n".format(x - vector[0]/2, y - vector[1]/2, x + vector[0]/2, y + vector[1]/2))
+                        #pass
+                    
+            # start plot
+            out.write("plot '-' with lines\n0 0 1 1\n")
+                
+            # end plot
+            out.write("e\n");
+        
 
     def tick(self, time_diff):
         '''Some time has passed; decide what to do next'''
@@ -140,13 +240,32 @@ class Agent(object):
         # Reset my set of commands (we don't want to run old commands)
         self.commands = []
 
+        # As obstacles can apparently change with visibility, load them on each tick
+        fields = []
+        for obstacle in self.bzrc.get_obstacles():
+            fields.append(ObstacleField(obstacle))
+        for flag in self.flags:
+            if (flag.color != self.constants['team']):
+                fields.append(FlagField(flag, self))
+        
         # Decide what to do with each of my tanks
         for bot in mytanks:
-            self.tanks[bot.index].update(bot)
+            tank = self.tanks[bot.index]
+            tank.update(bot)
             # Figure out the desired potential field magic to give it a vector. Make one up for now
             delta_x = 5
             delta_y = 10
-            self.commands.append(self.tanks[bot.index].get_desired_movement_command((delta_x, delta_y), time_diff))
+            movement = (delta_x, delta_y)
+            
+            tank_pos = (tank.x, tank.y)
+            for field in fields:
+                movement = add(movement, field.get_force(tank_pos))
+            if tank.flag != '-':
+                for base in self.bzrc.get_bases():
+                    if base.color == self.constants['team']:
+                        movement = add(movement, BaseField(base).get_force(tank_pos))
+            
+            self.commands.append(tank.get_desired_movement_command(movement, time_diff))
 
         # Send the commands to the server
         results = self.bzrc.do_commands(self.commands)
@@ -210,8 +329,8 @@ class Tank(object):
         error_angle = target_angle - current_angle;
         error_speed = target_speed - current_speed;
         
-        proportional_gain_angle = 0.1
-        proportional_gain_speed = 0.1
+        proportional_gain_angle = 1
+        proportional_gain_speed = 1
         derivative_gain_angle = 0.1
         derivative_gain_speed = 0.1
         
@@ -237,12 +356,9 @@ def main():
     print "Running Tyler & Morgan's Super Smart Flag Capturer"
 
     # Connect.
-    bzrc = BZRC(host, int(port), debug=True)
-    #bzrc = BZRC(host, int(port))
-    print "............................................"
-    bzrc.get_obstacles();
-    print "............................................"
-
+    #bzrc = BZRC(host, int(port), debug=True)
+    bzrc = BZRC(host, int(port))
+    
     agent = Agent(bzrc)
 
     prev_time = time.time()
@@ -250,7 +366,6 @@ def main():
     # Run the agent
     try:
         while True:
-            print "New loop"
             time_diff = time.time() - prev_time
             agent.tick(time_diff)
     except KeyboardInterrupt:
