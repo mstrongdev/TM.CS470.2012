@@ -84,6 +84,49 @@ class Agent(object):
             angle -= 2 * math.pi
         return angle
 
+class Tank(object):
+    
+    def __init__(self, bzrc, tank):
+        self.bzrc = bzrc
+        self.previous_error_angle = 0
+        self.previous_error_speed = 0
+        self.update(tank)
+    
+    def update(self, tank):
+        self.index = tank.index;
+        self.callsign = tank.callsign;
+        self.status = tank.status;
+        self.shots_avail = tank.shots_avail;
+        self.time_to_reload = tank.time_to_reload;
+        self.flag = tank.flag;
+        self.x = tank.x;
+        self.y = tank.y;
+        self.angle = tank.angle;
+        self.vx = tank.vx;
+        self.vy = tank.vy;
+        self.angvel = tank.angvel;
+    
+    def get_desired_movement_command(self, delta_x, delta_y, time_diff):
+        target_angle = math.atan2(delta_y, delta_x)
+        # clamp the speed to -1 to 1 (technically, 0 to 1)
+        target_speed = min(math.sqrt(math.pow(delta_x) + math.pow(delta_y)), 1.0)
+        current_angle = self.angle;
+        current_speed = math.sqrt(math.pow(self.vy) + math.pow(self.vx))
+        error_angle = target_angle - current_angle;
+        error_speed = target_speed - current_speed;
+        
+        proportional_gain_angle = 0.1
+        proportional_gain_speed = 0.1
+        derivative_gain_angle = 0.1
+        derivative_gain_speed = 0.1
+        
+        send_angle = proportional_gain_angle * error_angle + derivative_gain_angle * ((error_angle - previous_error_angle) / time_diff)
+        send_speed = proportional_gain_speed * error_speed + derivative_gain_speed * ((error_speed - previous_error_speed) / time_diff)
+        
+        self.previous_error_angle = error_angle
+        self.previous_error_speed = error_speed
+        
+        return Command(self.index, send_speed, send_angle, 0)
 
 def main():
     # Process CLI arguments.
