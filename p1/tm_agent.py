@@ -11,7 +11,61 @@ def normalize_angle(angle):
     elif angle > math.pi:
         angle -= 2 * math.pi
     return angle
+def dist(pt1, pt2):
+    '''Calculate distance between two points'''
+    return math.sqrt((pt2[0] - pt1[0])**2 + (pt2[1] - pt1[1])**2)
+
+class PField(object):
+    '''A Potential Field. Parent Class.'''
+    # PUBLIC
+    def __init__(self, center=(0,0), radius=0, spread=100, strength=1, min_bound=None, max_bound=None, direction=None):
+        self.center = center
+        self.radius = radius
+        self.spread = spread
+        self.strength = strength
+        self.min_bound = min_bound
+        self.max_bound = max_bound
+        self.direction = direction
+    def update(self, center=None, radius=None, spread=None, strength=None, min_bound=None, max_bound=None, direction=None):
+        if center:
+            self.center = center
+        if radius:
+            self.radius = radius
+        if spread:
+            self.spread = spread
+        if strength:
+            self.strength = strength
+        if min_bound:
+            self.min_bound = min_bound
+        if max_bound:
+            self.max_bound = max_bound
+        if direction:
+            self.direction = direction
+    def get_delta(position):
+        return position
     
+    # PRIVATE
+    def _attract(position):
+        d = dist(self.center, position)
+        
+        # Position is inside Goal
+        if d < self.radius: 
+            return (0,0)
+        # Position is outside goal and inside spread
+        elif self.radius <= d and d <= (self.radius+self.spread):
+            pass
+        # Position is outside spread. Delta is at max strength.
+        else:
+            pass
+    def _repulse(position):
+        pass
+    def _tangent(rotation, position):
+        pass
+    def _boundedUniform(min_corner, max_corner, direction, position):
+        pass
+    def _boundedPerpendicular(position):
+        pass
+
 class Agent(object):
 
     def __init__(self, bzrc):
@@ -70,7 +124,6 @@ class Agent(object):
         command = Command(bot.index, 1, 2 * relative_angle, True)
         self.commands.append(command)
     """
-    
     
 class Tank(object):
     
