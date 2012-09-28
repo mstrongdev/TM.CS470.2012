@@ -41,29 +41,55 @@ class PField(object):
             self.max_bound = max_bound
         if direction:
             self.direction = direction
-    def get_delta(position):
-        return position
+    def get_delta(p):
+        return p
     
     # PRIVATE
-    def _attract(position):
-        d = dist(self.center, position)
+    def _attract(p):
+        d = dist(self.center, p)
+        theta = math.atan2((self.center[1]-p[1])/(self.center[0]-p[0]))
+        dx,dy = (0,0)
         
-        # Position is inside Goal
+        # Position is inside the Goal.
         if d < self.radius: 
-            return (0,0)
-        # Position is outside goal and inside spread
-        elif self.radius <= d and d <= (self.radius+self.spread):
             pass
+        # Position is outside goal and inside spread.
+        elif self.radius <= d and d <= (self.radius+self.spread):
+            dx = self.strength * (d-self.radius) * math.cos(theta)
+            dy = self.strength * (d-self.radius) * math.sin(theta)
         # Position is outside spread. Delta is at max strength.
         else:
+            dx = self.strength * self.spread * math.cos(theta)
+            dy = self.strength * self.spread * math.sin(theta)
+        
+        return (dx,dy)
+
+    def _repulse(p):
+        d = dist(self.center, p)
+        theta = math.atan2((self.center[1]-p[1])/(self.center[0]-p[0]))
+        dx,dy = (0,0)
+        
+        # Position is inside the Goal.
+        if d < self.radius:
+            dx = -math.cos(theta) * float("inf")
+            dy = -math.sin(theta) * float("inf")
+        # Position is outside goal and inside spread.
+        elif self.radius <= d and d <= (self.radius+self.spread):
+            dx = self.strength * (self.spread + self.radius - d) * math.cos(theta)
+            dy = self.strength * (self.spread + self.radius - d) * math.sin(theta)
+        # Position is outside spread.
+        else:
             pass
-    def _repulse(position):
+        
+        return (dx,dy)
+
+    def _tangent(rotation, p):
         pass
-    def _tangent(rotation, position):
+    def _random(p):
         pass
-    def _boundedUniform(min_corner, max_corner, direction, position):
+    def _boundedUniform(p):
         pass
-    def _boundedPerpendicular(position):
+    def _boundedPerpendicular(p):
         pass
 
 class Agent(object):
