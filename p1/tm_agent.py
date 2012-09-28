@@ -45,9 +45,10 @@ class PField(object):
         return p
     
     # PRIVATE
-    def _attract(p):
+    def _attract(p, strength=None):
         d = dist(self.center, p)
         theta = math.atan2((self.center[1]-p[1])/(self.center[0]-p[0]))
+        scale = strength if strength else self.strength
         dx,dy = (0,0)
         
         # Position is inside the Goal.
@@ -55,18 +56,19 @@ class PField(object):
             pass
         # Position is outside goal and inside spread.
         elif self.radius <= d and d <= (self.radius+self.spread):
-            dx = self.strength * (d-self.radius) * math.cos(theta)
-            dy = self.strength * (d-self.radius) * math.sin(theta)
+            dx = scale * (d-self.radius) * math.cos(theta)
+            dy = scale * (d-self.radius) * math.sin(theta)
         # Position is outside spread. Delta is at max strength.
         else:
-            dx = self.strength * self.spread * math.cos(theta)
-            dy = self.strength * self.spread * math.sin(theta)
+            dx = scale * self.spread * math.cos(theta)
+            dy = scale * self.spread * math.sin(theta)
         
         return (dx,dy)
 
-    def _repulse(p):
+    def _repulse(p, strength=None, theta_offset=0):
         d = dist(self.center, p)
-        theta = math.atan2((self.center[1]-p[1])/(self.center[0]-p[0]))
+        theta = math.atan2((self.center[1]-p[1])/(self.center[0]-p[0])) + theta_offset
+        scale = strength if strength else self.strength
         dx,dy = (0,0)
         
         # Position is inside the Goal.
@@ -75,18 +77,31 @@ class PField(object):
             dy = -math.sin(theta) * float("inf")
         # Position is outside goal and inside spread.
         elif self.radius <= d and d <= (self.radius+self.spread):
-            dx = self.strength * (self.spread + self.radius - d) * math.cos(theta)
-            dy = self.strength * (self.spread + self.radius - d) * math.sin(theta)
+            dx = scale * (self.spread + self.radius - d) * math.cos(theta)
+            dy = scale * (self.spread + self.radius - d) * math.sin(theta)
         # Position is outside spread.
         else:
             pass
         
         return (dx,dy)
 
-    def _tangent(rotation, p):
-        pass
-    def _random(p):
-        pass
+    def _tangent(p, clockwise, strength=None):
+        theta_direction = math.pi/2 if clockwise else -math.pi/2  # TODO: Does this need to be flipped?
+        return _repulse(p, theta_direction, strength)
+    
+    def _random(p, strength=None, time=0):
+        scale = strength if strength else self.strength
+        
+        seed = p[0]*41648 + p[1]*915
+        theta = random.random(seed+time)*2*math.pi - math.pi
+        seed = p[0]*743 + p[1]*13743
+        r_magnitude = random.random(seed+time) * scale
+        
+        dx = magnitude * math.cos(theta)
+        dy = magnitude * math.sin(theta)
+        
+        return (dx,dy)
+
     def _boundedUniform(p):
         pass
     def _boundedPerpendicular(p):
