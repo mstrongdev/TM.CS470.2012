@@ -1,7 +1,7 @@
 #!/usr/bin/python -tt
 
 from bzrc import BZRC, Command
-import sys, math, time
+import sys, math, time, random
 
 def normalize_angle(angle):
     '''Make any angle be between +/- pi.'''
@@ -85,8 +85,8 @@ class PField(object):
         
         # doesn't use radius or spread - just strength as a scale on the distance squared
         if (d > 1):
-            dx = min(scale * (1 / d), 25) * math.cos(theta)
-            dy = min(scale * (1 / d), 25) * math.sin(theta)
+            dx = min(scale * (1 / d), 150) * math.cos(theta)
+            dy = min(scale * (1 / d), 150) * math.sin(theta)
         else:
             # If right on top of it, don't give a super huge movement force.
             pass
@@ -120,10 +120,10 @@ class PField(object):
     def _random(self, p, strength=None, time=0):
         scale = strength if strength else self.strength
         
-        seed = p[0]*41648 + p[1]*915
-        theta = random.random(seed+time)*2*math.pi - math.pi
-        seed = p[0]*743 + p[1]*13743
-        r_magnitude = random.random(seed+time) * scale
+        #seed = p[0]*41648 + p[1]*915
+        theta = random.random()*2*math.pi - math.pi
+        #seed = p[0]*743 + p[1]*13743
+        magnitude = random.random() * scale
         
         dx = magnitude * math.cos(theta)
         dy = magnitude * math.sin(theta)
@@ -147,22 +147,23 @@ class ObstacleField(PField):
             center = new_center,
             radius = new_radius,
             spread = new_spread,
-            strength = .1)
+            strength = .5)
     
     def get_force(self, position):
-        return add(self._repulse(position), self._tangent(position, True))
+        return add(self._repulse(position, 0.75), self._tangent(position, True))
 
 class FlagField(PField):
     
-    def __init__(self, flag, agent):
+    def __init__(self, flag, agent, num_flags):
+        self.num_flags = num_flags
         self.update(
             center = (flag.x, flag.y),
             radius = float(agent.constants['flagradius']),
             spread = 50,
-            strength = .1)
+            strength = 1)
             
     def get_force(self, position):
-        return add(self._gravity(position, 1500), self._attract(position))
+        return add(self._gravity(position, 1500 * self.num_flags), self._attract(position))
         
 class BaseField(PField):
     
@@ -180,10 +181,18 @@ class BaseField(PField):
             center = new_center,
             radius = new_radius,
             spread = new_spread,
-            strength = 50)
+            strength = 100)
             
     def get_force(self, position):
         return self._attract(position)
+        
+class RandomField(PField):
+
+    def __init__(self):
+        self.update(strength = .1)
+        
+    def get_force(self, position):
+        return self._random(position)
 
 class Agent(object):
 
@@ -199,19 +208,23 @@ class Agent(object):
             fields.append(ObstacleField(obstacle))
         for flag in self.bzrc.get_flags():
             if (flag.color != self.constants['team']):
-                fields.append(FlagField(flag, self))
+                fields.append(FlagField(flag, self, len(self.bzrc.get_flags()) - 1))
         for base in self.bzrc.get_bases():
             if (base.color == self.constants['team']):
                 #fields.append(BaseField(base))
                 pass
         
-        with open("obstacle_fields.gpi", 'w+') as out:
+        self.write_fields("start.gpi", fields)
+        
+    def write_fields(self, file, fields):
+        
+        with open(file, 'w+') as out:
             # header
-            out.write("set title \"Potential Fields\"\nset xrange [-400.0 : 400.0]\nset yrange [-400.0 : 400.0]\nunset key\nset size square\nset terminal wxt size 1600,1600\nset term png\nset output \"output.png\"\n\n")
+            out.write("set title \"Fields\"\nset xrange [-400.0 : 400.0]\nset yrange [-400.0 : 400.0]\nunset key\nset size square\nset terminal wxt size 1600,1600\nset term png\nset output \"{0}.png\"\n\n".format(file))
             
             # write the body of the fields
-            for x in range(-390, 390, 20):
-                for y in range(-390, 390, 20):
+            for x in range(-380, 380, 40):
+                for y in range(-380, 380, 40):
                     vector = (0, 0)
                     for field in fields:
                         vector = add(vector, field.get_force((x, y)))
@@ -242,11 +255,12 @@ class Agent(object):
 
         # As obstacles can apparently change with visibility, load them on each tick
         fields = []
-        for obstacle in self.bzrc.get_obstacles():
-            fields.append(ObstacleField(obstacle))
+        #for obstacle in self.bzrc.get_obstacles():
+        #    fields.append(ObstacleField(obstacle))
         for flag in self.flags:
             if (flag.color != self.constants['team']):
-                fields.append(FlagField(flag, self))
+                fields.append(FlagField(flag, self, len(self.flags) - 1))
+        #fields.append(RandomField())
         
         # Decide what to do with each of my tanks
         for bot in mytanks:
@@ -260,10 +274,28 @@ class Agent(object):
             tank_pos = (tank.x, tank.y)
             for field in fields:
                 movement = add(movement, field.get_force(tank_pos))
+            # Return to base?
             if tank.flag != '-':
                 for base in self.bzrc.get_bases():
                     if base.color == self.constants['team']:
+                        print "Returning to base:"
+                        print tank.flag
                         movement = add(movement, BaseField(base).get_force(tank_pos))
+            else:
+                # Determine which flag is the one thats being attracted to
+                flag_dist = float("inf")
+                flag_field = None
+                for flag in self.flags:
+                    if (flag.color != self.constants['team']):
+                        #fields.append(FlagField(flag, self, len(self.flags) - 1))
+                        if (dist(tank_pos, (flag.x, flag.y)) < flag_dist):
+                            flag_dist = dist(tank_pos, (flag.x, flag.y))
+                            flag_field = FlagField(flag, self, len(self.flags) - 1)
+                movement = add(movement, flag_field.get_force(tank_pos))
+            # Combine all fields for filing
+            tank_fields = list(fields)
+            tank_fields.append(flag_field)
+            self.write_fields("fields_{0}.gpi".format(tank.index), tank_fields)
             
             self.commands.append(tank.get_desired_movement_command(movement, time_diff))
 
@@ -330,7 +362,7 @@ class Tank(object):
         error_speed = target_speed - current_speed;
         
         proportional_gain_angle = 1
-        proportional_gain_speed = 1
+        proportional_gain_speed = 0.1
         derivative_gain_angle = 0.1
         derivative_gain_speed = 0.1
         
@@ -340,6 +372,8 @@ class Tank(object):
         self.previous_error_angle = error_angle
         self.previous_error_speed = error_speed
         
+        # Ignore the PD Controller for now - make sure fields are working first
+        #return Command(self.index, delta_x, delta_y, 0 if self.shots_avail else 0) # Shoot whenever possible
         return Command(self.index, send_speed, send_angle, 0)
 
 
