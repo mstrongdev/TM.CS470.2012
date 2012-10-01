@@ -293,9 +293,9 @@ class Agent(object):
                             flag_field = FlagField(flag, self, len(self.flags) - 1)
                 movement = add(movement, flag_field.get_force(tank_pos))
             # Combine all fields for filing
-            tank_fields = list(fields)
-            tank_fields.append(flag_field)
-            self.write_fields("fields_{0}.gpi".format(tank.index), tank_fields)
+            #tank_fields = list(fields)
+            #tank_fields.append(flag_field)
+            #self.write_fields("fields_{0}.gpi".format(tank.index), tank_fields)
             
             self.commands.append(tank.get_desired_movement_command(movement, time_diff))
 
@@ -369,13 +369,12 @@ class Tank(object):
         send_angle = proportional_gain_angle * error_angle + derivative_gain_angle * ((error_angle - self.previous_error_angle) / time_diff)
         send_speed = proportional_gain_speed * error_speed + derivative_gain_speed * ((error_speed - self.previous_error_speed) / time_diff)
         
-        print "Error angle: {0}".format(error_angle)
         self.previous_error_angle = error_angle
         self.previous_error_speed = error_speed
         
         # Ignore the PD Controller for now - make sure fields are working first
         #return Command(self.index, delta_x, delta_y, 0 if self.shots_avail else 0) # Shoot whenever possible
-        return Command(self.index, send_speed, send_angle, 0)
+        return Command(self.index, send_speed, send_angle, 1 if self.shots_avail and random.random() * 100 < 3 else 0) # Shoot sporadically
 
 
 def main():
