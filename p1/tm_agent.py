@@ -361,7 +361,7 @@ class Tank(object):
         error_angle = target_angle - current_angle;
         error_speed = target_speed - current_speed;
         
-        proportional_gain_angle = 1
+        proportional_gain_angle = 0.3
         proportional_gain_speed = 0.1
         derivative_gain_angle = 0.1
         derivative_gain_speed = 0.1
@@ -369,6 +369,7 @@ class Tank(object):
         send_angle = proportional_gain_angle * error_angle + derivative_gain_angle * ((error_angle - self.previous_error_angle) / time_diff)
         send_speed = proportional_gain_speed * error_speed + derivative_gain_speed * ((error_speed - self.previous_error_speed) / time_diff)
         
+        print "Error angle: {0}".format(error_angle)
         self.previous_error_angle = error_angle
         self.previous_error_speed = error_speed
         
