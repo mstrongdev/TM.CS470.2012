@@ -147,7 +147,7 @@ class ObstacleField(PField):
             center = new_center,
             radius = new_radius,
             spread = new_spread,
-            strength = .5)
+            strength = 1.5)
     
     def get_force(self, position):
         return add(self._repulse(position, 0.75), self._tangent(position, True))
@@ -202,19 +202,24 @@ class Agent(object):
         self.commands = []
         self.tanks = {tank.index:Tank(bzrc, tank) for tank in self.bzrc.get_mytanks()}
         
-        # Write the initial potential fields
+        ''' Write the initial potential fields 
         fields = []
         for obstacle in self.bzrc.get_obstacles():
             fields.append(ObstacleField(obstacle))
+            pass
         for flag in self.bzrc.get_flags():
             if (flag.color != self.constants['team']):
                 fields.append(FlagField(flag, self, len(self.bzrc.get_flags()) - 1))
+                pass
         for base in self.bzrc.get_bases():
             if (base.color == self.constants['team']):
                 #fields.append(BaseField(base))
                 pass
+        fields.append(RandomField());
         
         self.write_fields("start.gpi", fields)
+        '''
+        #'''
         
     def write_fields(self, file, fields):
         
@@ -223,13 +228,14 @@ class Agent(object):
             out.write("set title \"Fields\"\nset xrange [-400.0 : 400.0]\nset yrange [-400.0 : 400.0]\nunset key\nset size square\nset terminal wxt size 1600,1600\nset term png\nset output \"{0}.png\"\n\n".format(file))
             
             # write the body of the fields
-            for x in range(-380, 380, 40):
-                for y in range(-380, 380, 40):
+            for x in range(-380, 390, 40):
+                for y in range(-380, 390, 40):
                     vector = (0, 0)
                     for field in fields:
                         vector = add(vector, field.get_force((x, y)))
                     if (vector[0] != float("inf") and vector[1] != float("-inf")):
-                        out.write("set arrow from {0}, {1} to {2}, {3}\n".format(x - vector[0]/2, y - vector[1]/2, x + vector[0]/2, y + vector[1]/2))
+                        scaling_factor = 1.0/4.0
+                        out.write("set arrow from {0}, {1} to {2}, {3}\n".format(x - vector[0]/(2 / scaling_factor), y - vector[1]/(2 / scaling_factor), x + vector[0]/(2 / scaling_factor), y + vector[1]/(2 / scaling_factor)))
                         #pass
                     
             # start plot
@@ -278,10 +284,11 @@ class Agent(object):
             if tank.flag != '-':
                 for base in self.bzrc.get_bases():
                     if base.color == self.constants['team']:
-                        print "Returning to base:"
-                        print tank.flag
+                        #print "Returning to base:"
+                        #print tank.flag
                         movement = add(movement, BaseField(base).get_force(tank_pos))
             else:
+                ''' This code only attracts to one flag at a time 
                 # Determine which flag is the one thats being attracted to
                 flag_dist = float("inf")
                 flag_field = None
@@ -292,12 +299,19 @@ class Agent(object):
                             flag_dist = dist(tank_pos, (flag.x, flag.y))
                             flag_field = FlagField(flag, self, len(self.flags) - 1)
                 movement = add(movement, flag_field.get_force(tank_pos))
+                '''
+                for flag in self.flags:
+                    if (flag.color != self.constants['team']):
+                        movement = add(movement, FlagField(flag, self, len(self.flags) - 1).get_force(tank_pos))
+                '''
+                #'''
+                # ^ Can I just say how happy I am about this python syntax I came up with all by myself for toggling between two alternate blocks of code?
             # Combine all fields for filing
             #tank_fields = list(fields)
             #tank_fields.append(flag_field)
             #self.write_fields("fields_{0}.gpi".format(tank.index), tank_fields)
             
-            self.commands.append(tank.get_desired_movement_command(movement, time_diff))
+            self.commands.append(tank.get_desired_movement_command(movement, time_diff, tank.flag != '-'))
 
         # Send the commands to the server
         results = self.bzrc.do_commands(self.commands)
@@ -350,31 +364,30 @@ class Tank(object):
         self.vy = tank.vy;
         self.angvel = tank.angvel;
     
-    def get_desired_movement_command(self, movement_vector, time_diff):
+    def get_desired_movement_command(self, movement_vector, time_diff, has_flag):
         delta_x, delta_y = movement_vector
         
         target_angle = math.atan2(delta_y, delta_x)
         # clamp the speed to -1 to 1 (technically, 0 to 1)
         target_speed = math.sqrt(math.pow(delta_x, 2) + math.pow(delta_y, 2))
-        current_angle = self.angle;
+        current_angle = normalize_angle(self.angle);
         current_speed = math.sqrt(math.pow(self.vy, 2) + math.pow(self.vx, 2))
-        error_angle = target_angle - current_angle;
+        error_angle = normalize_angle(target_angle - current_angle);
         error_speed = target_speed - current_speed;
         
-        proportional_gain_angle = 0.3
+        proportional_gain_angle = 1.25
         proportional_gain_speed = 0.1
         derivative_gain_angle = 0.1
         derivative_gain_speed = 0.1
         
-        send_angle = proportional_gain_angle * error_angle + derivative_gain_angle * ((error_angle - self.previous_error_angle) / time_diff)
+        send_angvel = proportional_gain_angle * error_angle + derivative_gain_angle * ((error_angle - self.previous_error_angle) / time_diff)
         send_speed = proportional_gain_speed * error_speed + derivative_gain_speed * ((error_speed - self.previous_error_speed) / time_diff)
         
         self.previous_error_angle = error_angle
         self.previous_error_speed = error_speed
         
         # Ignore the PD Controller for now - make sure fields are working first
-        #return Command(self.index, delta_x, delta_y, 0 if self.shots_avail else 0) # Shoot whenever possible
-        return Command(self.index, send_speed, send_angle, 1 if self.shots_avail and random.random() * 100 < 3 else 0) # Shoot sporadically
+        return Command(self.index, send_speed, send_angvel, 1 if self.shots_avail and (random.random() * 100 < 3 or has_flag) else 0) # Shoot sporadically
 
 
 def main():
@@ -387,7 +400,7 @@ def main():
         print >>sys.stderr, 'usage: %s hostname port' % sys.argv[0]
         sys.exit(-1)
         
-    print "Running Tyler & Morgan's Super Smart Flag Capturer"
+    #print "Running Tyler & Morgan's Super Smart Flag Capturer"
 
     # Connect.
     #bzrc = BZRC(host, int(port), debug=True)
