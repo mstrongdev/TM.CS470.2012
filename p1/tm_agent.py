@@ -150,7 +150,7 @@ class ObstacleField(PField):
             strength = 1.5)
     
     def get_force(self, position):
-        return add(self._repulse(position, 0.75), self._tangent(position, True))
+        return add(self._repulse(position, 5), self._tangent(position, True))
 
 class FlagField(PField):
     
@@ -202,7 +202,7 @@ class Agent(object):
         self.commands = []
         self.tanks = {tank.index:Tank(bzrc, tank) for tank in self.bzrc.get_mytanks()}
         
-        ''' Write the initial potential fields 
+        ''' Write the initial potential fields ''
         fields = []
         for obstacle in self.bzrc.get_obstacles():
             fields.append(ObstacleField(obstacle))
@@ -288,7 +288,7 @@ class Agent(object):
                         #print tank.flag
                         movement = add(movement, BaseField(base).get_force(tank_pos))
             else:
-                ''' This code only attracts to one flag at a time 
+                ''' This code only attracts to one flag at a time '''
                 # Determine which flag is the one thats being attracted to
                 flag_dist = float("inf")
                 flag_field = None
