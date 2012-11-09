@@ -32,7 +32,33 @@ class Agent(object):
         self.constants = self.bzrc.get_constants()
         self.commands = []
         self.tanks = {tank.index:Tank(bzrc, tank) for tank in self.bzrc.get_mytanks()}
-        self.bel_grid = [[]]
+        
+        # Initialize World Map / Belief Grid
+        self.bel_grid = list(.75 for i in range(self.constants["worldsize"]**2))
+        
+        ''' Available Constants ''' '''
+        CONSTANT        EX. OUTPUT
+        team            blue
+        worldsize       800
+        hoverbot        0
+        puppyzone       30
+        tankangvel      0.785398163397
+        tanklength      6
+        tankradius      4.32
+        tankspeed       25
+        tankalive       alive
+        tankdead        dead
+        linearaccel     0.5
+        angularaccel    0.5
+        tankwidth       2.8
+        shotradius      0.5
+        shotrange       350
+        shotspeed       100
+        flagradius      2.5
+        explodetime     5
+        truepositive    1
+        truenegative    1
+        '''
 
     def tick(self, time_diff):
         '''Some time has passed; decide what to do next'''
