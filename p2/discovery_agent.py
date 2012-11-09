@@ -33,7 +33,7 @@ class Agent(object):
         self.commands = []
         self.tanks = {tank.index:Tank(bzrc, tank) for tank in self.bzrc.get_mytanks()}
         self.bel_grid = [[]]
-
+        
     def tick(self, time_diff):
         '''Some time has passed; decide what to do next'''
         
@@ -77,6 +77,7 @@ class Tank(object):
         self.angvel = tank.angvel;
     
     def get_desired_movement_command(self, movement_vector, time_diff, has_flag):
+        # PD Controller stuff to make movement smoother
         delta_x, delta_y = movement_vector
         
         target_angle = math.atan2(delta_y, delta_x)
@@ -98,7 +99,6 @@ class Tank(object):
         self.previous_error_angle = error_angle
         self.previous_error_speed = error_speed
         
-        # Ignore the PD Controller for now - make sure fields are working first
         return Command(self.index, send_speed, send_angvel, 1 if self.shots_avail and (random.random() * 100 < 3 or has_flag) else 0) # Shoot sporadically
 
 def main():
