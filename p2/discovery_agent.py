@@ -128,14 +128,24 @@ class Agent(object):
             # Check to see if the tank should take a sample now
             if tank.should_sample(self.conf_grid):
                 # Call occgrid
+                pos, grid = self.bzrc.get_occgrid(bot.index)
                 
-                # Update belief grid
+                # Iterate over each cell in the sampled grid
+                for col in range(pos[0], pos[0] + grid.shape[0]):
+                    for row in range(pos[1], pos[1] + grid.shape[1]):
+                        print col, row
+                        # Update belief grid
+                        # Bayes rule and stuff has not been implemented
+                        # Update confidence grid
+                        self.conf_grid[row, col] += .1
                 
+                # This code is replaced with the loop above
                 # Update confidence grid
                 # With the rounding here, this might have some off by one errors...when adding the updates for the belief grid, this should be changed as well, so that only the cells changed are updated.
-                for col in range(int(max(0, tank.x + 350)), int(min(width, tank.x + 450))): # TODO: AGAIN: THESE ASSUME A CENTERED, 800x800 WORLD
-                    for row in range(int(max(0, tank.y + 350)), int(min(height, tank.y + 450))):
-                        self.conf_grid[row, col] += .1
+                #for col in range(int(max(0, tank.x + 350)), int(min(width, tank.x + 450))): # TODO: AGAIN: THESE ASSUME A CENTERED, 800x800 WORLD
+                #    for row in range(int(max(0, tank.y + 350)), int(min(height, tank.y + 450))):
+                #        #self.conf_grid[row, col] += .1
+                #        pass
                 #self.conf_grid = numpy.add(self.conf_grid, 1)
             
             self.commands.append(tank.get_desired_movement_command(time_diff, int(self.constants["tankspeed"])))
@@ -205,7 +215,7 @@ class Tank(object):
         self.previous_error_angle = error_angle
         self.previous_error_speed = error_speed
         
-        return Command(self.index, send_speed, send_angvel, 0) # Shoot sporadically
+        return Command(self.index, send_speed, send_angvel, 0)
 
 # OpenGL functions
 window = None
