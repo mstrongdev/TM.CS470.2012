@@ -1,7 +1,20 @@
 #!/usr/bin/python -tt
 
+# BZRC Imports
 from bzrc import BZRC, Command
+
+# OpenGL Imports
+import OpenGL
+OpenGL.ERROR_CHECKING = False
+from OpenGL.GL import *
+from OpenGL.GLUT import *
+from OpenGL.GLU import *
+#from numpy import zeros
+import numpy
+
+# Misc Imports
 import sys, math, time, random
+
 
 def normalize_angle(angle):
     '''Make any angle be between +/- pi.'''
@@ -22,8 +35,33 @@ def midpoint(pt1, pt2):
 def add(vector1, vector2):
     return (vector1[0] + vector2[0], vector1[1] + vector2[1])
     
+# grid is a numpy grid, center is a point in the grid to center at, size is the size of the box that should be averaged
+def subgrid(grid, center, size):
+    width, height = grid.shape
+    left = int(max(0, center[0] - size/2))
+    right = int(min(width, center[0] + size/2))
+    bottom = int(max(0, center[1] - size/2))
+    top = int(min(height, center[1] + size/2))
+    return grid[bottom:top, left:right]
+    
 def average(l):
     return reduce(lambda x, y: x + y, l) / len(l)
+
+def average_grid(grid, center, size):
+    return numpy.mean(subgrid(grid, center, size))
+    
+def min_grid(grid, center, size):
+    return numpy.min(subgrid(grid, center, size))
+    
+def max_grid(grid, center, size):
+    return numpy.max(subgrid(grid, center, size))
+
+def deg2rad(n):
+    return n * (math.pi / 180.0)
+    
+def rad2deg(n):
+    return n * (180.0 / math.pi)
+    
 
 class Agent(object):
 
@@ -32,27 +70,80 @@ class Agent(object):
         self.constants = self.bzrc.get_constants()
         self.commands = []
         self.tanks = {tank.index:Tank(bzrc, tank) for tank in self.bzrc.get_mytanks()}
-        self.bel_grid = [[]]
         
+        # Initialize World Map / Belief Grid
+        init_window(int(self.constants["worldsize"]), int(self.constants["worldsize"]))
+        self.bel_grid = numpy.array(list(list(.75 for j in range(int(self.constants["worldsize"]))) for i in range(int(self.constants["worldsize"]))))
+        self.conf_grid = numpy.array(list(list(0.0 for j in range(int(self.constants["worldsize"]))) for i in range(int(self.constants["worldsize"]))))
+        update_grid(self.conf_grid)
+        
+        ''' Available Constants ''' '''
+        CONSTANT        EX. OUTPUT
+        team            blue
+        worldsize       800
+        hoverbot        0
+        puppyzone       30
+        tankangvel      0.785398163397
+        tanklength      6
+        tankradius      4.32
+        tankspeed       25
+        tankalive       alive
+        tankdead        dead
+        linearaccel     0.5
+        angularaccel    0.5
+        tankwidth       2.8
+        shotradius      0.5
+        shotrange       350
+        shotspeed       100
+        flagradius      2.5
+        explodetime     5
+        truepositive    1
+        truenegative    1
+        '''
+
     def tick(self, time_diff):
         '''Some time has passed; decide what to do next'''
         
         # ALGORITHM
         # 
-        
+        # for all_tanks
+        #  if should_sample()
+        #   call occgrid
+        #   update bel/conf grid
+        #  if picknewpoint()
+        #   picknewpoint()
+        #  movetopoint()
+        # 
         
         # Reset my set of commands (we don't want to run old commands)
         self.commands = []
         
         # Decide what to do with each of my tanks
-        for bot in mytanks:
+        width, height = self.conf_grid.shape
+        for bot in self.bzrc.get_mytanks():
+            # Get the tank and update it with what we received from the server
             tank = self.tanks[bot.index]
             tank.update(bot)
             
-            self.commands.append(tank.get_desired_movement_command(movement, time_diff, tank.flag != '-'))
+            # Check to see if the tank should take a sample now
+            if tank.should_sample(self.conf_grid):
+                # Call occgrid
+                
+                # Update belief grid
+                
+                # Update confidence grid
+                # With the rounding here, this might have some off by one errors...when adding the updates for the belief grid, this should be changed as well, so that only the cells changed are updated.
+                for col in range(int(max(0, tank.x + 350)), int(min(width, tank.x + 450))): # TODO: AGAIN: THESE ASSUME A CENTERED, 800x800 WORLD
+                    for row in range(int(max(0, tank.y + 350)), int(min(height, tank.y + 450))):
+                        self.conf_grid[row, col] += .1
+                #self.conf_grid = numpy.add(self.conf_grid, 1)
+            
+            self.commands.append(tank.get_desired_movement_command(time_diff, int(self.constants["tankspeed"])))
 
-        # Send the commands to the server
+        # Send the movement commands to the server
         results = self.bzrc.do_commands(self.commands)
+        
+        update_grid(self.conf_grid)
     
 class Tank(object):
     
@@ -61,6 +152,8 @@ class Tank(object):
         self.previous_error_angle = 0
         self.previous_error_speed = 0
         self.update(tank)
+        self.target = (0, 0)
+        self.pick_point()
     
     def update(self, tank):
         self.index = tank.index;
@@ -75,22 +168,35 @@ class Tank(object):
         self.vx = tank.vx;
         self.vy = tank.vy;
         self.angvel = tank.angvel;
+        
+    def pick_point(self):
+        self.target = (200, 200) # TODO
+        
+    def should_sample(self, conf_grid):
+        # TODO: THE 400s HERE ARE TO MOVE COORDINATES INTO ALL POSITIVE SPACE. THE REGULAR WORLD IS CENTERED AROUND THE POINT (0, 0)
+        # this 10 is our hard coded decision of when we feel like we won't get any more benefit from sampling this region
+        return average_grid(conf_grid, (self.x + 400, self.y + 400), 100) < 0.1
     
-    def get_desired_movement_command(self, movement_vector, time_diff, has_flag):
+    def get_desired_movement_command(self, time_diff, maxspeed):
         # PD Controller stuff to make movement smoother
-        delta_x, delta_y = movement_vector
+        delta_x = self.target[0] - self.x
+        delta_y = self.target[1] - self.y
+        print "Delta:", (delta_x, delta_y)
         
         target_angle = math.atan2(delta_y, delta_x)
-        # clamp the speed to -1 to 1 (technically, 0 to 1)
-        target_speed = math.sqrt(math.pow(delta_x, 2) + math.pow(delta_y, 2))
         current_angle = normalize_angle(self.angle);
-        current_speed = math.sqrt(math.pow(self.vy, 2) + math.pow(self.vx, 2))
         error_angle = normalize_angle(target_angle - current_angle);
+        print "Error:", int(rad2deg(error_angle)), "Target:", int(rad2deg(target_angle)), "Current:", int(rad2deg(current_angle))
+        # clamp the speed to -1 to 1 (technically, 0 to 1)
+        # Base the speed on the current angle as well
+        target_speed = math.cos(error_angle) * maxspeed
+        current_speed = math.sqrt(math.pow(self.vy, 2) + math.pow(self.vx, 2))
         error_speed = target_speed - current_speed;
+        print "Error:", int(error_speed), "Target:", int(target_speed), "Current:", int(current_speed)
         
-        proportional_gain_angle = 1.25
-        proportional_gain_speed = 0.1
-        derivative_gain_angle = 0.1
+        proportional_gain_angle = 2.25
+        proportional_gain_speed = 1.0
+        derivative_gain_angle = 0.5
         derivative_gain_speed = 0.1
         
         send_angvel = proportional_gain_angle * error_angle + derivative_gain_angle * ((error_angle - self.previous_error_angle) / time_diff)
@@ -99,8 +205,42 @@ class Tank(object):
         self.previous_error_angle = error_angle
         self.previous_error_speed = error_speed
         
-        return Command(self.index, send_speed, send_angvel, 1 if self.shots_avail and (random.random() * 100 < 3 or has_flag) else 0) # Shoot sporadically
+        return Command(self.index, send_speed, send_angvel, 0) # Shoot sporadically
 
+# OpenGL functions
+window = None
+grid = None
+
+def draw_grid():
+    # This assumes you are using a numpy array for your grid
+    width, height = grid.shape
+    glRasterPos2f(-1, -1)
+    glDrawPixels(width, height, GL_LUMINANCE, GL_FLOAT, grid)
+    glFlush()
+    glutSwapBuffers()
+
+def update_grid(new_grid):
+    global grid
+    grid = new_grid
+    draw_grid()
+
+def init_window(width, height):
+    global window
+    global grid
+    grid = numpy.zeros((width, height))
+    glutInit(())
+    glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_ALPHA | GLUT_DEPTH)
+    glutInitWindowSize(width, height)
+    glutInitWindowPosition(0, 0)
+    #window = glutCreateWindow("Grid filter lab: Confidence")
+    window = glutCreateWindow("Grid filter lab: Belief")
+    glutDisplayFunc(draw_grid)
+    glMatrixMode(GL_PROJECTION)
+    glLoadIdentity()
+    glMatrixMode(GL_MODELVIEW)
+    glLoadIdentity()
+    #glutMainLoop()
+        
 def main():
     # Process CLI arguments.
     try:
