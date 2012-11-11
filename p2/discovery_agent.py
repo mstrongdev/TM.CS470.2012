@@ -75,7 +75,7 @@ class Agent(object):
         init_window(int(self.constants["worldsize"]), int(self.constants["worldsize"]))
         self.bel_grid = numpy.array(list(list(.75 for j in range(int(self.constants["worldsize"]))) for i in range(int(self.constants["worldsize"]))))
         self.conf_grid = numpy.array(list(list(0.0 for j in range(int(self.constants["worldsize"]))) for i in range(int(self.constants["worldsize"]))))
-        update_grid(self.conf_grid)
+        update_grid_display(self.conf_grid)
         
         ''' Available Constants ''' '''
         CONSTANT        EX. OUTPUT
@@ -100,7 +100,22 @@ class Agent(object):
         truepositive    1
         truenegative    1
         '''
-
+    
+    def update_belief(self, row, col, grid_val):
+        '''Update the belief grid based on Bayes Rule'''
+        if grid_val == 1:  # if we observe a hit
+            Bel_Occ = float(self.constants["truepositive"]) * self.bel_grid[row,col]
+            Bel_Unocc = (1-float(self.constants["truenegative"])) * (1-self.bel_grid[row,col])
+            # Normalize
+            self.bel_grid[row,col] = Bel_Occ / (Bel_Occ + Bel_Unocc);
+            
+        else:  # If do not observe a hit
+            Bel_Occ = (1-float(self.constants["truepositive"])) * self.bel_grid[row,col]
+            Bel_Unocc = float(self.constants["truenegative"]) * (1-self.bel_grid[row,col])
+            # Normalize
+            self.bel_grid[row,col] = Bel_Occ / (Bel_Occ + Bel_Unocc)
+    
+    
     def tick(self, time_diff):
         '''Some time has passed; decide what to do next'''
         
@@ -131,11 +146,11 @@ class Agent(object):
                 pos, grid = self.bzrc.get_occgrid(bot.index)
                 
                 # Iterate over each cell in the sampled grid
-                for col in range(pos[0], pos[0] + grid.shape[0]):
-                    for row in range(pos[1], pos[1] + grid.shape[1]):
+                for col in range(pos[0] + 400, pos[0] + 400 + grid.shape[0]):
+                    for row in range(pos[1] + 400, pos[1] + 400 + grid.shape[1]):
                         print col, row
                         # Update belief grid
-                        # Bayes rule and stuff has not been implemented
+                        self.update_belief(row, col, grid[col-pos[0]-400,row-pos[1]-400])
                         # Update confidence grid
                         self.conf_grid[row, col] += .1
                 
@@ -153,7 +168,7 @@ class Agent(object):
         # Send the movement commands to the server
         results = self.bzrc.do_commands(self.commands)
         
-        update_grid(self.conf_grid)
+        update_grid_display(self.bel_grid)
     
 class Tank(object):
     
@@ -229,7 +244,7 @@ def draw_grid():
     glFlush()
     glutSwapBuffers()
 
-def update_grid(new_grid):
+def update_grid_display(new_grid):
     global grid
     grid = new_grid
     draw_grid()
