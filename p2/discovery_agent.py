@@ -68,14 +68,15 @@ class Agent(object):
     def __init__(self, bzrc):
         self.bzrc = bzrc
         self.constants = self.bzrc.get_constants()
-        self.commands = []
-        self.tanks = {tank.index:Tank(bzrc, self, tank) for tank in self.bzrc.get_mytanks()}
         
         # Initialize World Map / Belief Grid
         init_window(int(self.constants["worldsize"]), int(self.constants["worldsize"]))
         self.bel_grid = numpy.array(list(list(.75 for j in range(int(self.constants["worldsize"]))) for i in range(int(self.constants["worldsize"]))))
         self.conf_grid = numpy.array(list(list(0.0 for j in range(int(self.constants["worldsize"]))) for i in range(int(self.constants["worldsize"]))))
-        update_grid(self.conf_grid)
+        update_grid_display(self.conf_grid)
+        
+        self.commands = []
+        self.tanks = {tank.index:Tank(bzrc, self, tank) for tank in self.bzrc.get_mytanks()}
         
         ''' Available Constants ''' '''
         CONSTANT        EX. OUTPUT
@@ -100,7 +101,22 @@ class Agent(object):
         truepositive    1
         truenegative    1
         '''
-
+    
+    def update_belief(self, row, col, grid_val):
+        '''Update the belief grid based on Bayes Rule'''
+        if grid_val == 1:  # if we observe a hit
+            Bel_Occ = float(self.constants["truepositive"]) * self.bel_grid[row,col]
+            Bel_Unocc = (1-float(self.constants["truenegative"])) * (1-self.bel_grid[row,col])
+            # Normalize
+            self.bel_grid[row,col] = Bel_Occ / (Bel_Occ + Bel_Unocc);
+            
+        else:  # If do not observe a hit
+            Bel_Occ = (1-float(self.constants["truepositive"])) * self.bel_grid[row,col]
+            Bel_Unocc = float(self.constants["truenegative"]) * (1-self.bel_grid[row,col])
+            # Normalize
+            self.bel_grid[row,col] = Bel_Occ / (Bel_Occ + Bel_Unocc)
+    
+    
     def tick(self, time_diff):
         '''Some time has passed; decide what to do next'''
         
@@ -132,11 +148,11 @@ class Agent(object):
                 pos, grid = self.bzrc.get_occgrid(bot.index)
                 
                 # Iterate over each cell in the sampled grid
-                for col in range(pos[0], pos[0] + grid.shape[0]):
-                    for row in range(pos[1], pos[1] + grid.shape[1]):
+                for col in range(pos[0] + 400, pos[0] + 400 + grid.shape[0]):
+                    for row in range(pos[1] + 400, pos[1] + 400 + grid.shape[1]):
                         #print col, row
                         # Update belief grid
-                        # Bayes rule and stuff has not been implemented
+                        self.update_belief(row, col, grid[col-pos[0]-400,row-pos[1]-400])
                         # Update confidence grid
                         self.conf_grid[row, col] += .1
                 
@@ -156,7 +172,7 @@ class Agent(object):
         # Send the movement commands to the server
         results = self.bzrc.do_commands(self.commands)
         
-        update_grid(self.conf_grid)
+        update_grid_display(self.bel_grid)
     
 class Tank(object):
     
@@ -165,11 +181,17 @@ class Tank(object):
         self.agent = agent
         self.previous_error_angle = 0
         self.previous_error_speed = 0
+        self.x = None
+        self.y = None
         self.update(tank)
-        self.target = (0, 0)
-        self.pick_point()
+        self.prev_x = self.x
+        self.prev_y = self.y
+        self.target = (random.randint(-400, 400), random.randint(-400, 400))
+        #self.pick_point(0)
     
     def update(self, tank):
+        self.prev_x = self.x
+        self.prev_y = self.y
         self.index = tank.index;
         self.callsign = tank.callsign;
         self.status = tank.status;
@@ -186,18 +208,57 @@ class Tank(object):
     def check_pick_new_point(self, average_confidence, time_diff):
         delta_x = self.target[0] - self.x
         delta_y = self.target[1] - self.y
-        error_angle = normalize_angle(math.atan2(delta_y, delta_x) - normalize_angle(self.angle));
-        if dist((self.x, self.y), target) < 20 or (dist((self.vx, self.vy), (0, 0))/time_diff < 5 and math.abs(error_angle) < math.pi/6):
-            # We need a new point
-            self.pick_point()
+        #error_angle = normalize_angle(math.atan2(delta_y, delta_x) - normalize_angle(self.angle));
+        #print "speed:",dist((self.vx, self.vy), (0, 0))/time_diff
+        #if dist((self.x, self.y), self.target) < 20 or (dist((self.vx, self.vy), (0, 0))/time_diff < 1 and math.fabs(error_angle) < math.pi/6):
         
-    def pick_point(self):
-        self.target = (200, 200) # TODO
+        magnitude = math.sqrt(delta_x**2 + delta_y**2)
+        direction = (delta_x / magnitude, delta_y / magnitude)
+        
+        if dist((self.x, self.y), self.target) < 20 or (average_grid(self.agent.bel_grid, (self.x + 5 * direction[0] + 400, self.y + 5 * direction[1] + 400), 10) > .8) or (self.x == self.prev_x and self.y == self.prev_y):
+            # We need a new point
+            self.pick_point(average_confidence)
+        else:
+            #print "no new target"
+            pass
+        
+    def pick_point(self, average_confidence):
+        #newx = random.randint(-400, 400)
+        #newy = random.randint(-400, 400)
+        #attempts = 0
+        #while average_grid(self.agent.conf_grid, (newx + 400, newy + 400), 100) > average_confidence and attempts < 5:
+        #    attempts += 1
+        #    newx = random.randint(-400, 400)
+        #    newy = random.randint(-400, 400)
+        #self.target = (newx, newy)
+        self.target = self.pick_recursive(self.agent.conf_grid, 0, 800, 0, 800, 4)
+        #print "New target:", self.target
+        
+    def pick_recursive(self, grid, left, right, bottom, top, depth):
+        if depth == 0:
+            return (random.randint(left, right)-400, random.randint(bottom, top)-400)
+
+        width = right - left
+        height = top - bottom
+        left_split = numpy.average(grid[bottom:top, left + width/2:right])
+        right_split = numpy.average(grid[bottom:top, left:right - width/2])
+        bottom_split = numpy.average(grid[bottom + height/2:top, left:right])
+        top_split = numpy.average(grid[bottom:top - height/2, left:right])
+        min_avg = min(left_split, right_split, bottom_split, top_split)
+        if left_split == min_avg:
+            return self.pick_recursive(grid, left + width/2, right, bottom, top, depth - 1)
+        elif right_split == min_avg:
+            return self.pick_recursive(grid, left, right - width/2, bottom, top, depth - 1)
+        elif bottom_split == min_avg:
+            return self.pick_recursive(grid, left, right, bottom + height/2, top, depth - 1)
+        else:
+            return self.pick_recursive(grid, left, right, bottom, top - height/2, depth - 1)
         
     def should_sample(self, conf_grid):
         # TODO: THE 400s HERE ARE TO MOVE COORDINATES INTO ALL POSITIVE SPACE. THE REGULAR WORLD IS CENTERED AROUND THE POINT (0, 0)
         # this 10 is our hard coded decision of when we feel like we won't get any more benefit from sampling this region
-        return average_grid(conf_grid, (self.x + 400, self.y + 400), 100) < 0.1
+        confidence_threshold = .1
+        return average_grid(conf_grid, (self.x + 400, self.y + 400), 100) < confidence_threshold
     
     def get_desired_movement_command(self, time_diff, maxspeed):
         # PD Controller stuff to make movement smoother
@@ -227,7 +288,11 @@ class Tank(object):
         self.previous_error_angle = error_angle
         self.previous_error_speed = error_speed
         
-        if dist((self.vx, self.vy), (0, 0))/time_diff < 5 and math.abs(error_angle) < math.pi/6: # Did we not move very far, and were we facing the right way?
+        magnitude = math.sqrt(delta_x**2 + delta_y**2)
+        direction = (delta_x / magnitude, delta_y / magnitude)
+        
+        #dist((self.vx, self.vy), (0, 0))/time_diff < 1 and math.fabs(error_angle) < math.pi/6: # Did we not move very far, and were we facing the right way?
+        if average_grid(self.agent.bel_grid, (self.x + 5 * direction[0] + 400, self.y + 5 * direction[1] + 400), 10) > .8 or (self.x == self.prev_x and self.y == self.prev_y): # Are we reasonably sure we're running into an obstacle right now?
             # If we are hitting an obstacle, send the max angular velocity
             send_angvel = 1
         #    print "true"
@@ -248,7 +313,7 @@ def draw_grid():
     glFlush()
     glutSwapBuffers()
 
-def update_grid(new_grid):
+def update_grid_display(new_grid):
     global grid
     grid = new_grid
     draw_grid()
