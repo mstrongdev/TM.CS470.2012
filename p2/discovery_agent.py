@@ -69,7 +69,7 @@ class Agent(object):
         self.bzrc = bzrc
         self.constants = self.bzrc.get_constants()
         self.commands = []
-        self.tanks = {tank.index:Tank(bzrc, tank) for tank in self.bzrc.get_mytanks()}
+        self.tanks = {tank.index:Tank(bzrc, self, tank) for tank in self.bzrc.get_mytanks()}
         
         # Initialize World Map / Belief Grid
         init_window(int(self.constants["worldsize"]), int(self.constants["worldsize"]))
@@ -120,6 +120,7 @@ class Agent(object):
         
         # Decide what to do with each of my tanks
         width, height = self.conf_grid.shape
+        average_confidence = numpy.average(self.conf_grid)
         for bot in self.bzrc.get_mytanks():
             # Get the tank and update it with what we received from the server
             tank = self.tanks[bot.index]
@@ -133,7 +134,7 @@ class Agent(object):
                 # Iterate over each cell in the sampled grid
                 for col in range(pos[0], pos[0] + grid.shape[0]):
                     for row in range(pos[1], pos[1] + grid.shape[1]):
-                        print col, row
+                        #print col, row
                         # Update belief grid
                         # Bayes rule and stuff has not been implemented
                         # Update confidence grid
@@ -147,6 +148,8 @@ class Agent(object):
                 #        #self.conf_grid[row, col] += .1
                 #        pass
                 #self.conf_grid = numpy.add(self.conf_grid, 1)
+                
+            tank.check_pick_new_point(average_confidence, time_diff)
             
             self.commands.append(tank.get_desired_movement_command(time_diff, int(self.constants["tankspeed"])))
 
@@ -157,8 +160,9 @@ class Agent(object):
     
 class Tank(object):
     
-    def __init__(self, bzrc, tank):
+    def __init__(self, bzrc, agent, tank):
         self.bzrc = bzrc
+        self.agent = agent
         self.previous_error_angle = 0
         self.previous_error_speed = 0
         self.update(tank)
@@ -179,6 +183,14 @@ class Tank(object):
         self.vy = tank.vy;
         self.angvel = tank.angvel;
         
+    def check_pick_new_point(self, average_confidence, time_diff):
+        delta_x = self.target[0] - self.x
+        delta_y = self.target[1] - self.y
+        error_angle = normalize_angle(math.atan2(delta_y, delta_x) - normalize_angle(self.angle));
+        if dist((self.x, self.y), target) < 20 or (dist((self.vx, self.vy), (0, 0))/time_diff < 5 and math.abs(error_angle) < math.pi/6):
+            # We need a new point
+            self.pick_point()
+        
     def pick_point(self):
         self.target = (200, 200) # TODO
         
@@ -191,18 +203,18 @@ class Tank(object):
         # PD Controller stuff to make movement smoother
         delta_x = self.target[0] - self.x
         delta_y = self.target[1] - self.y
-        print "Delta:", (delta_x, delta_y)
+        #print "Delta:", (delta_x, delta_y)
         
         target_angle = math.atan2(delta_y, delta_x)
-        current_angle = normalize_angle(self.angle);
+        current_angle = normalize_angle(self.angle)
         error_angle = normalize_angle(target_angle - current_angle);
-        print "Error:", int(rad2deg(error_angle)), "Target:", int(rad2deg(target_angle)), "Current:", int(rad2deg(current_angle))
+        #print "Error:", int(rad2deg(error_angle)), "Target:", int(rad2deg(target_angle)), "Current:", int(rad2deg(current_angle))
         # clamp the speed to -1 to 1 (technically, 0 to 1)
         # Base the speed on the current angle as well
         target_speed = math.cos(error_angle) * maxspeed
         current_speed = math.sqrt(math.pow(self.vy, 2) + math.pow(self.vx, 2))
         error_speed = target_speed - current_speed;
-        print "Error:", int(error_speed), "Target:", int(target_speed), "Current:", int(current_speed)
+        #print "Error:", int(error_speed), "Target:", int(target_speed), "Current:", int(current_speed)
         
         proportional_gain_angle = 2.25
         proportional_gain_speed = 1.0
@@ -215,6 +227,13 @@ class Tank(object):
         self.previous_error_angle = error_angle
         self.previous_error_speed = error_speed
         
+        if dist((self.vx, self.vy), (0, 0))/time_diff < 5 and math.abs(error_angle) < math.pi/6: # Did we not move very far, and were we facing the right way?
+            # If we are hitting an obstacle, send the max angular velocity
+            send_angvel = 1
+        #    print "true"
+        #else:
+        #    print "false"
+            
         return Command(self.index, send_speed, send_angvel, 0)
 
 # OpenGL functions
