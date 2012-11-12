@@ -195,6 +195,7 @@ class Tank(object):
         self.prev_x = self.x
         self.prev_y = self.y
         self.target = (random.randint(-400, 400), random.randint(-400, 400))
+        print "Initial Target:", self.target
         #self.pick_point(0)
     
     def update(self, tank):
@@ -242,7 +243,7 @@ class Tank(object):
         #self.target = (newx, newy)
         
         # TYLER'S POINT PICKER
-        self.target = self.pick_recursive(self.agent.conf_grid, 0, 800, 0, 800, 4)
+        self.target = self.pick_recursive(self.agent.conf_grid, 0, 800, 0, 800, 10)
         
         # MORGAN's POINT PICKER
         # self.target = self.local_pick(self.agent.conf_grid, self.x+400, self.y+400, 75)
@@ -347,12 +348,15 @@ class Tank(object):
         self.previous_error_speed = error_speed
         
         magnitude = math.sqrt(delta_x**2 + delta_y**2)
+        if magnitude == 0:
+            magnitude = 1
         direction = (delta_x / magnitude, delta_y / magnitude)
         
         #dist((self.vx, self.vy), (0, 0))/time_diff < 1 and math.fabs(error_angle) < math.pi/6: # Did we not move very far, and were we facing the right way?
         if average_grid(self.agent.bel_grid, (self.x + 5 * direction[0] + 400, self.y + 5 * direction[1] + 400), 10) > .8 or (self.x == self.prev_x and self.y == self.prev_y): # Are we reasonably sure we're running into an obstacle right now?
             # If we are hitting an obstacle, send the max angular velocity
             send_angvel = 1
+            send_speed = 1
         #    print "true"
         #else:
         #    print "false"
