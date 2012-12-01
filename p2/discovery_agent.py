@@ -116,6 +116,14 @@ class Agent(object):
             # Normalize
             self.bel_grid[row,col] = Bel_Occ / (Bel_Occ + Bel_Unocc)
     
+    def update_confidence(self, row, col, grid_val):
+        '''Update the confidence grid based on the possibility of multiple errors in a row'''
+        if grid_val == 1:  # if we observe a hit
+            self.conf_grid[row,col] = 1 - ((1-self.conf_grid[row,col]) * (1-float(self.constants["truepositive"])))
+            
+        else:  # If do not observe a hit
+            self.conf_grid[row,col] = 1 - ((1-self.conf_grid[row,col]) * (1-float(self.constants["truenegative"])))
+    
     
     def tick(self, time_diff):
         '''Some time has passed; decide what to do next'''
@@ -154,7 +162,7 @@ class Agent(object):
                         # Update belief grid
                         self.update_belief(row, col, grid[col-pos[0]-400,row-pos[1]-400])
                         # Update confidence grid
-                        self.conf_grid[row, col] += .1
+                        self.update_confidence(row,col,grid[col-pos[0]-400,row-pos[1]-400])
                 
                 # This code is replaced with the loop above
                 # Update confidence grid
@@ -212,15 +220,16 @@ class Tank(object):
         #error_angle = normalize_angle(math.atan2(delta_y, delta_x) - normalize_angle(self.angle));
         #print "speed:",dist((self.vx, self.vy), (0, 0))/time_diff
         #if dist((self.x, self.y), self.target) < 20 or (dist((self.vx, self.vy), (0, 0))/time_diff < 1 and math.fabs(error_angle) < math.pi/6):
-        
-        magnitude = math.sqrt(delta_x**2 + delta_y**2)
-        direction = (delta_x / magnitude, delta_y / magnitude)
-        
-        if dist((self.x, self.y), self.target) < 20 or (average_grid(self.agent.bel_grid, (self.x + 5 * direction[0] + 400, self.y + 5 * direction[1] + 400), 10) > .8) or (self.x == self.prev_x and self.y == self.prev_y):
-            # We need a new point
-            self.pick_point(average_confidence)
-        else:
-            #print "no new target"
+        try:
+            magnitude = math.sqrt(delta_x**2 + delta_y**2)
+            direction = (delta_x / magnitude, delta_y / magnitude)
+            if dist((self.x, self.y), self.target) < 20 or (average_grid(self.agent.bel_grid, (self.x + 5 * direction[0] + 400, self.y + 5 * direction[1] + 400), 10) > .8) or (self.x == self.prev_x and self.y == self.prev_y):
+                # We need a new point
+                self.pick_point(average_confidence)
+            else:
+                #print "no new target"
+                pass
+        except Exception:
             pass
         
     def pick_point(self, average_confidence):
@@ -232,13 +241,17 @@ class Tank(object):
         #    newx = random.randint(-400, 400)
         #    newy = random.randint(-400, 400)
         #self.target = (newx, newy)
+        
+        # TYLER'S POINT PICKER
         self.target = self.pick_recursive(self.agent.conf_grid, 0, 800, 0, 800, 10)
-        print "New target:", self.target
+        
+        # MORGAN's POINT PICKER
+        # self.target = self.local_pick(self.agent.conf_grid, self.x+400, self.y+400, 75)
         
     def pick_recursive(self, grid, left, right, bottom, top, depth):
         if depth == 0:
             return (random.randint(left, right)-400, random.randint(bottom, top)-400)
-
+        
         width = right - left
         height = top - bottom
         left_split = numpy.average(grid[bottom:top, left + width/2:right])
@@ -254,11 +267,56 @@ class Tank(object):
             return self.pick_recursive(grid, left, right, bottom + height/2, top, depth - 1)
         else:
             return self.pick_recursive(grid, left, right, bottom, top - height/2, depth - 1)
+    
+    # Not Working Yet
+    def local_pick(self, grid, x, y, dist):
+        '''center  = numpy.average(grid[max(y-dist,0):min(y+dist,799), max(x-dist,0):min(x+dist,799)])
+        up      = numpy.average(grid[max(y,0):min(y+dist*2,799), max(x-dist,0):min(x+dist,799)])
+        down    = numpy.average(grid[max(y-dist*2,0):min(y,799), max(x-dist,0):min(x+dist,799)])
+        left    = numpy.average(grid[max(y-dist,0):min(y+dist,799), max(x-dist*2,0):min(x,799)])
+        right   = numpy.average(grid[max(y-dist,0):min(y+dist,799), max(x,0):min(x+dist*2,799)])'''
+        new_point = (0,0)
+        max_value = 799
+        min_value = 0
+        
+        center  = grid[x,y]
+        up      = grid[x,min(y+dist, max_value)]
+        down    = grid[x,max(y-dist, min_value)]
+        left    = grid[max(x-dist, min_value),y]
+        right   = grid[min(x+dist, max_value),y]
+        
+        min_conf = min(center, up, down, left, right)
+        std_conf = numpy.std(center, up, down, left, right)
+        
+        if center == min_conf:# or std < 1:
+            print "Recursive Pick Called."
+            return self.pick_recursive(self.agent.conf_grid, 0, 800, 0, 800, 4)
+        '''
+        if up == min_avg:
+            new_point = (random.randint(x-dist, x+dist)-400, random.randint(y, y+dist*2)-400)
+        elif down == min_avg:
+            new_point = (random.randint(x-dist, x+dist)-400, random.randint(y-dist*2, y)-400)
+        elif left == min_avg:
+            new_point = (random.randint(x-dist*2, x)-400, random.randint(y-dist, y+dist)-400)
+        elif right == min_avg:
+            new_point = (random.randint(x, x+dist*2)-400, random.randint(y-dist, y+dist)-400)
+        '''
+        if up:
+            new_point = (x-400,min(y+dist, max_value)-400)
+        elif down:
+            new_point = (x-400,max(y-dist, min_value)-400)
+        elif left:
+            new_point = (max(x-dist, min_value)-400,y-400)
+        elif right:
+            new_point = (min(x+dist, max_value)-400,y-400)
+        
+        # return (max(min(new_point[0], max_value), min_value), max(min(new_point[1], max_value), min_value))
+        return new_point
         
     def should_sample(self, conf_grid):
         # TODO: THE 400s HERE ARE TO MOVE COORDINATES INTO ALL POSITIVE SPACE. THE REGULAR WORLD IS CENTERED AROUND THE POINT (0, 0)
         # this 10 is our hard coded decision of when we feel like we won't get any more benefit from sampling this region
-        confidence_threshold = .1
+        confidence_threshold = .95 # % Confidence Level
         return average_grid(conf_grid, (self.x + 400, self.y + 400), 100) < confidence_threshold
     
     def get_desired_movement_command(self, time_diff, maxspeed):
