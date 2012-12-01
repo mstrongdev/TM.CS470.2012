@@ -70,10 +70,10 @@ class Agent(object):
         self.constants = self.bzrc.get_constants()
         
         # Initialize World Map / Belief Grid
-        init_window(int(self.constants["worldsize"]), int(self.constants["worldsize"]))
-        self.bel_grid = numpy.array(list(list(.75 for j in range(int(self.constants["worldsize"]))) for i in range(int(self.constants["worldsize"]))))
-        self.conf_grid = numpy.array(list(list(0.0 for j in range(int(self.constants["worldsize"]))) for i in range(int(self.constants["worldsize"]))))
-        update_grid_display(self.conf_grid)
+        #init_window(int(self.constants["worldsize"]), int(self.constants["worldsize"]))
+        #self.bel_grid = numpy.array(list(list(.75 for j in range(int(self.constants["worldsize"]))) for i in range(int(self.constants["worldsize"]))))
+        #self.conf_grid = numpy.array(list(list(0.0 for j in range(int(self.constants["worldsize"]))) for i in range(int(self.constants["worldsize"]))))
+        #update_grid_display(self.conf_grid)
         
         self.commands = []
         self.tanks = {tank.index:Tank(bzrc, self, tank) for tank in self.bzrc.get_mytanks()}
@@ -101,10 +101,16 @@ class Agent(object):
         truepositive    1
         truenegative    1
         '''
-    
-    def write_kalman_fields(self, file, fields):
         
-        with open(file, 'w+') as out:
+        self.write_kalman_fields("test1", 10, 10, 0)
+        self.write_kalman_fields("test2", 100, 10, 0)
+        self.write_kalman_fields("test3", 10, 100, 0)
+        self.write_kalman_fields("test4", 100, 100, 50)
+        self.write_kalman_fields("test5", 100, 100, 100)
+    
+    def write_kalman_fields(self, file, sigma_x, sigma_y, rho):
+        
+        with open("{0}.gpi".format(file), 'w+') as out:
             # header
             out.write("set xrange [-400.0: 400.0]\n")
             out.write("set yrange [-400.0: 400.0]\n")
@@ -112,23 +118,31 @@ class Agent(object):
             out.write("set view map\n")
             out.write("unset key\n")
             out.write("set size square\n")
+            # Print to png when run
+            out.write("set term png\n")
+            out.write("set output \"{0}.png\"\n".format(file))
             out.write("\n")
             out.write("unset arrow\n")
-            out.write("set arrow from 0, 0 to -150, 0 nohead front lt 3\n")
-            out.write("set arrow from -150, 0 to -150, -50 nohead front lt 3\n")
-            out.write("set arrow from -150, -50 to 0, -50 nohead front lt 3\n")
-            out.write("set arrow from 0, -50 to 0, 0 nohead front lt 3\n")
-            out.write("set arrow from 200, 100 to 200, 330 nohead front lt 3\n")
-            out.write("set arrow from 200, 330 to 300, 330 nohead front lt 3\n")
-            out.write("set arrow from 300, 330 to 300, 100 nohead front lt 3\n")
-            out.write("set arrow from 300, 100 to 200, 100 nohead front lt 3\n")
+            #out.write("set arrow from 0, 0 to -150, 0 nohead front lt 3\n")
+            #out.write("set arrow from -150, 0 to -150, -50 nohead front lt 3\n")
+            #out.write("set arrow from -150, -50 to 0, -50 nohead front lt 3\n")
+            #out.write("set arrow from 0, -50 to 0, 0 nohead front lt 3\n")
+            #out.write("set arrow from 200, 100 to 200, 330 nohead front lt 3\n")
+            #out.write("set arrow from 200, 330 to 300, 330 nohead front lt 3\n")
+            #out.write("set arrow from 300, 330 to 300, 100 nohead front lt 3\n")
+            #out.write("set arrow from 300, 100 to 200, 100 nohead front lt 3\n")
             out.write("\n")
+            out.write("set palette model RGB functions 1-gray, 1-gray, 1-gray\n")
+            out.write("set isosamples 100\n")
             out.write("\n")
-            out.write("\n")
+            out.write("sigma_x = {0}\n".format(sigma_x))
+            out.write("sigma_y = {0}\n".format(sigma_y))
+            out.write("rho = {0}\n".format(rho))
+            out.write("splot 1.0/(2.0 * pi * sigma_x * sigma_y * sqrt(1 - rho**2) ) * exp(-1.0/2.0 * (x**2 / sigma_x**2 + y**2 / sigma_y**2 - 2.0*rho*x*y/(sigma_x*sigma_y) ) ) with pm3d\n")
             
-            out.write("set title \"Fields\"\nset xrange [-400.0 : 400.0]\nset yrange [-400.0 : 400.0]\nunset key\nset size square\nset terminal wxt size 1600,1600\nset term png\nset output \"{0}.png\"\n\n".format(file))
+            #out.write("set title \"Fields\"\nset xrange [-400.0 : 400.0]\nset yrange [-400.0 : 400.0]\nunset key\nset size square\nset terminal wxt size 1600,1600\nset term png\nset output \"{0}.png\"\n\n".format(file))
             
-            
+            '''
             # write the body of the fields
             for x in range(-380, 390, 40):
                 for y in range(-380, 390, 40):
@@ -145,6 +159,7 @@ class Agent(object):
                 
             # end plot
             out.write("e\n");
+            '''
     
     def update_belief(self, row, col, grid_val):
         '''Update the belief grid based on Bayes Rule'''
@@ -179,13 +194,14 @@ class Agent(object):
         self.commands = []
         
         # Decide what to do with each of my tanks
-        width, height = self.conf_grid.shape
-        average_confidence = numpy.average(self.conf_grid)
+        #width, height = self.conf_grid.shape
+        #average_confidence = numpy.average(self.conf_grid)
         for bot in self.bzrc.get_mytanks():
             # Get the tank and update it with what we received from the server
             tank = self.tanks[bot.index]
             tank.update(bot)
             
+            '''
             # Check to see if the tank should take a sample now
             if tank.should_sample(self.conf_grid):
                 # Call occgrid
@@ -210,13 +226,14 @@ class Agent(object):
                 #self.conf_grid = numpy.add(self.conf_grid, 1)
                 
             tank.check_pick_new_point(average_confidence, time_diff)
+            '''
             
             self.commands.append(tank.get_desired_movement_command(time_diff, int(self.constants["tankspeed"])))
 
         # Send the movement commands to the server
         results = self.bzrc.do_commands(self.commands)
         
-        update_grid_display(self.bel_grid)
+        #update_grid_display(self.bel_grid)
     
 class Tank(object):
     
@@ -231,7 +248,7 @@ class Tank(object):
         self.prev_x = self.x
         self.prev_y = self.y
         self.target = (random.randint(-400, 400), random.randint(-400, 400))
-        print "Initial Target:", self.target
+        #print "Initial Target:", self.target
         #self.pick_point(0)
     
     def update(self, tank):
@@ -338,6 +355,7 @@ class Tank(object):
             magnitude = 1
         direction = (delta_x / magnitude, delta_y / magnitude)
         
+        '''
         #dist((self.vx, self.vy), (0, 0))/time_diff < 1 and math.fabs(error_angle) < math.pi/6: # Did we not move very far, and were we facing the right way?
         if average_grid(self.agent.bel_grid, (self.x + 5 * direction[0] + 400, self.y + 5 * direction[1] + 400), 10) > .8 or (self.x == self.prev_x and self.y == self.prev_y): # Are we reasonably sure we're running into an obstacle right now?
             # If we are hitting an obstacle, send the max angular velocity
@@ -346,8 +364,10 @@ class Tank(object):
         #    print "true"
         #else:
         #    print "false"
+        '''
+        send_speed = 0;
             
-        return Command(self.index, send_speed, send_angvel, 0)
+        return Command(self.index, send_speed, send_angvel, 1)
 
 # OpenGL functions
 window = None

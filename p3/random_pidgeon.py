@@ -188,7 +188,7 @@ class Tank(object):
         self.prev_x = self.x
         self.prev_y = self.y
         self.target = (random.randint(-400, 400), random.randint(-400, 400))
-        print "Initial Target:", self.target
+        #print "Initial Target:", self.target
         #self.pick_point(0)
     
     def update(self, tank):
