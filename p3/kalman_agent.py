@@ -102,6 +102,33 @@ class Agent(object):
         truenegative    1
         '''
     
+    def write_kalman_fields(self, file, fields):
+        
+        with open(file, 'w+') as out:
+            # header
+            out.write("set xrange [-400.0: 400.0]\n")
+            out.write("\n")
+            
+            out.write("set title \"Fields\"\nset xrange [-400.0 : 400.0]\nset yrange [-400.0 : 400.0]\nunset key\nset size square\nset terminal wxt size 1600,1600\nset term png\nset output \"{0}.png\"\n\n".format(file))
+            
+            
+            # write the body of the fields
+            for x in range(-380, 390, 40):
+                for y in range(-380, 390, 40):
+                    vector = (0, 0)
+                    for field in fields:
+                        vector = add(vector, field.get_force((x, y)))
+                    if (vector[0] != float("inf") and vector[1] != float("-inf")):
+                        scaling_factor = 1.0/4.0
+                        out.write("set arrow from {0}, {1} to {2}, {3}\n".format(x - vector[0]/(2 / scaling_factor), y - vector[1]/(2 / scaling_factor), x + vector[0]/(2 / scaling_factor), y + vector[1]/(2 / scaling_factor)))
+                        #pass
+                    
+            # start plot
+            out.write("plot '-' with lines\n0 0 1 1\n")
+                
+            # end plot
+            out.write("e\n");
+    
     def update_belief(self, row, col, grid_val):
         '''Update the belief grid based on Bayes Rule'''
         if grid_val == 1:  # if we observe a hit

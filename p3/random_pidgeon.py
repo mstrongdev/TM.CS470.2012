@@ -173,7 +173,7 @@ class Agent(object):
         # Send the movement commands to the server
         results = self.bzrc.do_commands(self.commands)
         
-        update_grid_display(self.bel_grid)
+        #update_grid_display(self.bel_grid)
     
 class Tank(object):
     
@@ -298,10 +298,10 @@ class Tank(object):
         direction = (delta_x / magnitude, delta_y / magnitude)
         
         #dist((self.vx, self.vy), (0, 0))/time_diff < 1 and math.fabs(error_angle) < math.pi/6: # Did we not move very far, and were we facing the right way?
-        if average_grid(self.agent.bel_grid, (self.x + 5 * direction[0] + 400, self.y + 5 * direction[1] + 400), 10) > .8 or (self.x == self.prev_x and self.y == self.prev_y): # Are we reasonably sure we're running into an obstacle right now?
+        #if average_grid(self.agent.bel_grid, (self.x + 5 * direction[0] + 400, self.y + 5 * direction[1] + 400), 10) > .8 or (self.x == self.prev_x and self.y == self.prev_y): # Are we reasonably sure we're running into an obstacle right now?
             # If we are hitting an obstacle, send the max angular velocity
-            send_angvel = 1
-            send_speed = 1
+        #    send_angvel = 1
+        #    send_speed = 1
         #    print "true"
         #else:
         #    print "false"
