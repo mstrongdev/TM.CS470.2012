@@ -105,8 +105,8 @@ class Agent(object):
         self.write_kalman_fields("test1", 10, 10, 0)
         self.write_kalman_fields("test2", 100, 10, 0)
         self.write_kalman_fields("test3", 10, 100, 0)
-        self.write_kalman_fields("test4", 100, 100, 50)
-        self.write_kalman_fields("test5", 100, 100, 100)
+        self.write_kalman_fields("test4", 100, 100, .5)
+        self.write_kalman_fields("test5", 100, 100, .9999)
     
     def write_kalman_fields(self, file, sigma_x, sigma_y, rho):
         
@@ -247,7 +247,9 @@ class Tank(object):
         self.update(tank)
         self.prev_x = self.x
         self.prev_y = self.y
+        # These variables are now used to point to the currently estimated position of the enemy tank, and its current velocity (x and y components)
         self.target = (random.randint(-400, 400), random.randint(-400, 400))
+        self.target_velocity = (0, 0)
         #print "Initial Target:", self.target
         #self.pick_point(0)
     
