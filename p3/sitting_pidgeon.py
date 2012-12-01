@@ -26,6 +26,7 @@ class Agent(object):
 
         # Send the commands to the server
         #results = self.bzrc.do_commands(self.commands)
+        pass
 
     def do_dumb_stuff(self, tick_time):
         turn_speed = math.pi / 6 # 30 degrees per second

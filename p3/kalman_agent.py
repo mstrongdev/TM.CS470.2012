@@ -107,6 +107,23 @@ class Agent(object):
         with open(file, 'w+') as out:
             # header
             out.write("set xrange [-400.0: 400.0]\n")
+            out.write("set yrange [-400.0: 400.0]\n")
+            out.write("set pm3d\n")
+            out.write("set view map\n")
+            out.write("unset key\n")
+            out.write("set size square\n")
+            out.write("\n")
+            out.write("unset arrow\n")
+            out.write("set arrow from 0, 0 to -150, 0 nohead front lt 3\n")
+            out.write("set arrow from -150, 0 to -150, -50 nohead front lt 3\n")
+            out.write("set arrow from -150, -50 to 0, -50 nohead front lt 3\n")
+            out.write("set arrow from 0, -50 to 0, 0 nohead front lt 3\n")
+            out.write("set arrow from 200, 100 to 200, 330 nohead front lt 3\n")
+            out.write("set arrow from 200, 330 to 300, 330 nohead front lt 3\n")
+            out.write("set arrow from 300, 330 to 300, 100 nohead front lt 3\n")
+            out.write("set arrow from 300, 100 to 200, 100 nohead front lt 3\n")
+            out.write("\n")
+            out.write("\n")
             out.write("\n")
             
             out.write("set title \"Fields\"\nset xrange [-400.0 : 400.0]\nset yrange [-400.0 : 400.0]\nunset key\nset size square\nset terminal wxt size 1600,1600\nset term png\nset output \"{0}.png\"\n\n".format(file))
