@@ -29,6 +29,10 @@ def dist(pt1, pt2):
     '''Calculate distance between two points'''
     return math.sqrt((pt2[0] - pt1[0])**2 + (pt2[1] - pt1[1])**2)
     
+def angle_from(pt1, pt2):
+    # Return angle from pt1 to pt2
+    return math.atan2(pt2[1] - pt1[1], pt2[0] - pt1[0])
+    
 def midpoint(pt1, pt2):
     return ((pt1[0] + pt2[0]) / 2, (pt1[1] + pt2[1]) / 2)
     
@@ -102,64 +106,48 @@ class Agent(object):
         truenegative    1
         '''
         
-        self.write_kalman_fields("test1", 10, 10, 0)
-        self.write_kalman_fields("test2", 100, 10, 0)
-        self.write_kalman_fields("test3", 10, 100, 0)
-        self.write_kalman_fields("test4", 100, 100, .5)
-        self.write_kalman_fields("test5", 100, 100, .9999)
+        self.file_suffix = 0
+        self.file_write_time_accumulator = 0
+        #self.write_kalman_fields("test1", 10, 10, 0, 0)
+        #self.write_kalman_fields("test2", 100, 10, 0, 0)
+        #self.write_kalman_fields("test3", 10, 100, 0, 0)
+        #self.write_kalman_fields("test4", 100, 100, .5, 0)
+        #self.write_kalman_fields("test5", 100, 100, .9999, 0)
     
-    def write_kalman_fields(self, file, sigma_x, sigma_y, rho):
-        
-        with open("{0}.gpi".format(file), 'w+') as out:
-            # header
-            out.write("set xrange [-400.0: 400.0]\n")
-            out.write("set yrange [-400.0: 400.0]\n")
-            out.write("set pm3d\n")
-            out.write("set view map\n")
-            out.write("unset key\n")
-            out.write("set size square\n")
-            # Print to png when run
-            out.write("set term png\n")
-            out.write("set output \"{0}.png\"\n".format(file))
-            out.write("\n")
-            out.write("unset arrow\n")
-            #out.write("set arrow from 0, 0 to -150, 0 nohead front lt 3\n")
-            #out.write("set arrow from -150, 0 to -150, -50 nohead front lt 3\n")
-            #out.write("set arrow from -150, -50 to 0, -50 nohead front lt 3\n")
-            #out.write("set arrow from 0, -50 to 0, 0 nohead front lt 3\n")
-            #out.write("set arrow from 200, 100 to 200, 330 nohead front lt 3\n")
-            #out.write("set arrow from 200, 330 to 300, 330 nohead front lt 3\n")
-            #out.write("set arrow from 300, 330 to 300, 100 nohead front lt 3\n")
-            #out.write("set arrow from 300, 100 to 200, 100 nohead front lt 3\n")
-            out.write("\n")
-            out.write("set palette model RGB functions 1-gray, 1-gray, 1-gray\n")
-            out.write("set isosamples 100\n")
-            out.write("\n")
-            out.write("sigma_x = {0}\n".format(sigma_x))
-            out.write("sigma_y = {0}\n".format(sigma_y))
-            out.write("rho = {0}\n".format(rho))
-            out.write("splot 1.0/(2.0 * pi * sigma_x * sigma_y * sqrt(1 - rho**2) ) * exp(-1.0/2.0 * (x**2 / sigma_x**2 + y**2 / sigma_y**2 - 2.0*rho*x*y/(sigma_x*sigma_y) ) ) with pm3d\n")
-            
-            #out.write("set title \"Fields\"\nset xrange [-400.0 : 400.0]\nset yrange [-400.0 : 400.0]\nunset key\nset size square\nset terminal wxt size 1600,1600\nset term png\nset output \"{0}.png\"\n\n".format(file))
-            
-            '''
-            # write the body of the fields
-            for x in range(-380, 390, 40):
-                for y in range(-380, 390, 40):
-                    vector = (0, 0)
-                    for field in fields:
-                        vector = add(vector, field.get_force((x, y)))
-                    if (vector[0] != float("inf") and vector[1] != float("-inf")):
-                        scaling_factor = 1.0/4.0
-                        out.write("set arrow from {0}, {1} to {2}, {3}\n".format(x - vector[0]/(2 / scaling_factor), y - vector[1]/(2 / scaling_factor), x + vector[0]/(2 / scaling_factor), y + vector[1]/(2 / scaling_factor)))
-                        #pass
-                    
-            # start plot
-            out.write("plot '-' with lines\n0 0 1 1\n")
-                
-            # end plot
-            out.write("e\n");
-            '''
+    def write_kalman_fields(self, file, sigma_x, sigma_y, rho, time_diff):
+        self.file_write_time_accumulator += time_diff
+        if (self.file_write_time_accumulator > 1):
+            self.file_write_time_accumulator = 0
+            self.file_suffix += 1
+            with open("{0}-{1}.gpi".format(file, self.file_suffix), 'w+') as out:
+                # header
+                out.write("set xrange [-400.0: 400.0]\n")
+                out.write("set yrange [-400.0: 400.0]\n")
+                out.write("set pm3d\n")
+                out.write("set view map\n")
+                out.write("unset key\n")
+                out.write("set size square\n")
+                # Print to png when run
+                out.write("set term png\n")
+                out.write("set output \"{0}-{1}.png\"\n".format(file, self.file_suffix))
+                out.write("\n")
+                out.write("unset arrow\n")
+                #out.write("set arrow from 0, 0 to -150, 0 nohead front lt 3\n")
+                #out.write("set arrow from -150, 0 to -150, -50 nohead front lt 3\n")
+                #out.write("set arrow from -150, -50 to 0, -50 nohead front lt 3\n")
+                #out.write("set arrow from 0, -50 to 0, 0 nohead front lt 3\n")
+                #out.write("set arrow from 200, 100 to 200, 330 nohead front lt 3\n")
+                #out.write("set arrow from 200, 330 to 300, 330 nohead front lt 3\n")
+                #out.write("set arrow from 300, 330 to 300, 100 nohead front lt 3\n")
+                #out.write("set arrow from 300, 100 to 200, 100 nohead front lt 3\n")
+                out.write("\n")
+                out.write("set palette model RGB functions 1-gray, 1-gray, 1-gray\n")
+                out.write("set isosamples 100\n")
+                out.write("\n")
+                out.write("sigma_x = {0}\n".format(sigma_x))
+                out.write("sigma_y = {0}\n".format(sigma_y))
+                out.write("rho = {0}\n".format(rho))
+                out.write("splot 1.0/(2.0 * pi * sigma_x * sigma_y * sqrt(1 - rho**2) ) * exp(-1.0/2.0 * (x**2 / sigma_x**2 + y**2 / sigma_y**2 - 2.0*rho*x*y/(sigma_x*sigma_y) ) ) with pm3d\n")
     
     def tick(self, time_diff):
         '''Some time has passed; decide what to do next'''
@@ -184,11 +172,12 @@ class Agent(object):
             tank.update(bot)
             
             
-            self.commands.append(tank.get_desired_movement_command(time_diff, int(self.constants["tankspeed"])))
+            self.commands.append(tank.get_desired_movement_command(time_diff, 0))
 
         # Send the movement commands to the server
         results = self.bzrc.do_commands(self.commands)
         
+        self.write_kalman_fields("kalman", 10, 10, 0, time_diff)
     
 class Tank(object):
     
@@ -223,41 +212,65 @@ class Tank(object):
         self.vx = tank.vx;
         self.vy = tank.vy;
         self.angvel = tank.angvel;
+        
+    def estimate_firing_angle(self):
+        source = (self.x, self.y)
+        
+        # iteration state vars
+        bullet = source
+        bullet_speed = 100
+        tank = self.target
+        tank_velocity = self.target_velocity
+        distance = dist(bullet, tank)
+        threshold = 5
+        angle = angle_from(source, tank)
+        total_time = 0
+        while (distance > threshold):
+            # Figure out how much time must pass to travel half the distance from the bullet to the tank
+            # The second part determines whether the step should be a little bit forward in time or backwards
+            time_step = (distance * .75) / bullet_speed * (1 if dist(source, bullet) < dist(source, tank) else -1)
+            total_time += time_step
+            tank = (tank[0] + time_step * tank_velocity[0], tank[1] + time_step * tank_velocity[1])
+            angle = angle_from(source, tank)
+            bullet = (self.x + total_time * math.cos(angle) * bullet_speed, self.y + total_time * math.sin(angle) * bullet_speed)
+            distance = dist(bullet, tank)
+        return angle
     
     def get_desired_movement_command(self, time_diff, maxspeed):
         # PD Controller stuff to make movement smoother
-        delta_x = self.target[0] - self.x
-        delta_y = self.target[1] - self.y
+        #delta_x = self.target[0] - self.x
+        #delta_y = self.target[1] - self.y
         #print "Delta:", (delta_x, delta_y)
         
-        target_angle = math.atan2(delta_y, delta_x)
+        #target_angle = math.atan2(delta_y, delta_x)
+        target_angle = self.estimate_firing_angle()
         current_angle = normalize_angle(self.angle)
         error_angle = normalize_angle(target_angle - current_angle);
         #print "Error:", int(rad2deg(error_angle)), "Target:", int(rad2deg(target_angle)), "Current:", int(rad2deg(current_angle))
         # clamp the speed to -1 to 1 (technically, 0 to 1)
         # Base the speed on the current angle as well
-        target_speed = math.cos(error_angle) * maxspeed
-        current_speed = math.sqrt(math.pow(self.vy, 2) + math.pow(self.vx, 2))
-        error_speed = target_speed - current_speed;
+        #target_speed = math.cos(error_angle) * maxspeed
+        #current_speed = math.sqrt(math.pow(self.vy, 2) + math.pow(self.vx, 2))
+        #error_speed = target_speed - current_speed;
         #print "Error:", int(error_speed), "Target:", int(target_speed), "Current:", int(current_speed)
         
         proportional_gain_angle = 2.25
-        proportional_gain_speed = 1.0
+        #proportional_gain_speed = 1.0
         derivative_gain_angle = 0.5
-        derivative_gain_speed = 0.1
+        #derivative_gain_speed = 0.1
         
         send_angvel = proportional_gain_angle * error_angle + derivative_gain_angle * ((error_angle - self.previous_error_angle) / time_diff)
-        send_speed = proportional_gain_speed * error_speed + derivative_gain_speed * ((error_speed - self.previous_error_speed) / time_diff)
+        #send_speed = proportional_gain_speed * error_speed + derivative_gain_speed * ((error_speed - self.previous_error_speed) / time_diff)
         
         self.previous_error_angle = error_angle
-        self.previous_error_speed = error_speed
+        #self.previous_error_speed = error_speed
         
+        '''
         magnitude = math.sqrt(delta_x**2 + delta_y**2)
         if magnitude == 0:
             magnitude = 1
         direction = (delta_x / magnitude, delta_y / magnitude)
         
-        '''
         #dist((self.vx, self.vy), (0, 0))/time_diff < 1 and math.fabs(error_angle) < math.pi/6: # Did we not move very far, and were we facing the right way?
         if average_grid(self.agent.bel_grid, (self.x + 5 * direction[0] + 400, self.y + 5 * direction[1] + 400), 10) > .8 or (self.x == self.prev_x and self.y == self.prev_y): # Are we reasonably sure we're running into an obstacle right now?
             # If we are hitting an obstacle, send the max angular velocity
@@ -267,9 +280,9 @@ class Tank(object):
         #else:
         #    print "false"
         '''
-        send_speed = 0;
             
-        return Command(self.index, send_speed, send_angvel, 1)
+        #return Command(self.index, send_speed, send_angvel, 1)
+        return Command(self.index, 0, send_angvel, 1)
 
 def main():
     # Process CLI arguments.
@@ -294,7 +307,9 @@ def main():
     # Run the agent
     try:
         while True:
-            time_diff = time.time() - prev_time
+            new_time = time.time()
+            time_diff = new_time - prev_time
+            prev_time = new_time
             agent.tick(time_diff)
     except KeyboardInterrupt:
         print "Exiting due to keyboard interrupt."
