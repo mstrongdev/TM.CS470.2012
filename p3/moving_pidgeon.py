@@ -12,11 +12,6 @@ class Agent(object):
         self.commands = []
         #self.dumb_queue = Queue.PriorityQueue()
         #self.tank_tracker = {}
-        # Just tell the tank to start moving in whatever direction its facing
-        self.mytanks = self.bzrc.get_mytanks()
-        for bot in self.mytanks:
-            self.commands.append(Command(bot.index, 1, 0, 0))
-        self.bzrc.do_commands(self.commands)
 
     def tick(self, time_diff, tick_time):
         '''Some time has passed; decide what to do next'''
@@ -31,6 +26,12 @@ class Agent(object):
 
         # Send the commands to the server
         #results = self.bzrc.do_commands(self.commands)
+        
+        # Just tell the tank to start moving in whatever direction its facing
+        self.mytanks = self.bzrc.get_mytanks()
+        for bot in self.mytanks:
+            self.commands.append(Command(bot.index, 1, 0, 0))
+        self.bzrc.do_commands(self.commands)
 
     def do_dumb_stuff(self, tick_time):
         turn_speed = math.pi / 6 # 30 degrees per second
