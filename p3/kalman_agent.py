@@ -68,16 +68,16 @@ def rad2deg(n):
     
 class KFilter(object):
     # Currently assumes 6 variables in the state: x_pos,x_vel,x_acc,y_pos,y_vel,y_acc
-    def __init__(self, mu0 = numpy.zeros(6), Sigma0 = None, pnoise=0):
+    def __init__(self, mu0 = numpy.zeros((6,1), dtype='float64'), Sigma0 = None, pnoise=0):
         # Constants
         self.Sigma_x = numpy.array([[.1,   0,    0,   0,   0,     0],\
                                     [ 0,  .1,    0,   0,   0,     0],\
                                     [ 0,   0,   100,  0,   0,     0],\
                                     [ 0,   0,    0,  .1,   0,     0],\
                                     [ 0,   0,    0,   0,  .1,     0],\
-                                    [ 0,   0,    0,   0,   0,   100]])
+                                    [ 0,   0,    0,   0,   0,   100]], dtype='float64')
         self.Sigma_z = numpy.array([[pnoise**2, 0],\
-                                    [0, pnoise**2]])
+                                    [0, pnoise**2]], dtype='float64')
         
         # t-dependent
         self.gain_t = .5
@@ -90,48 +90,54 @@ class KFilter(object):
                                         [0,     0,  .1,  0,   0,     0],\
                                         [0,     0,  0,   100, 0,     0],\
                                         [0,     0,  0,   0,   .1,    0],\
-                                        [0,     0,  0,   0,   0,     .1]])
+                                        [0,     0,  0,   0,   0,     .1]], dtype='float64')
     
     def _calc_gain(self, M):
         temp1 = M.dot(self.HT)
         temp2 = self.H.dot(M).dot(self.HT) + self.Sigma_z
-        temp3 = temp1.dot(temp2)
-        return 1/temp3
+        temp3 = temp1.dot(numpy.linalg.inv(temp2))
+        return temp3
     
     def _calc_mu_t(self, z_t):
         temp1 = z_t - self.H.dot(self.F).dot(self.mu_t)
-        temp2 = self.F.dot(self.mu_t) + self.gain_t * temp1
+        temp2 = self.F.dot(self.mu_t) + self.gain_t.dot(temp1)
         return temp2
     
     def _calc_sigma_t(self, M):
-        temp1 = numpy.identity(6) - self.gain_t * self.H
+        temp1 = numpy.identity(6) - self.gain_t.dot(self.H)
         temp2 = temp1.dot(M)
         return temp2
     
-    def run(t, z_t):
+    def run(self, t, z_t):
         # Calculate F and H and their transposes
         self.F = numpy.array([[1,   t, t**2/2, 0,   0,      0],\
                               [0,   1,      t, 0,   0,      0],\
                               [0, -.1,      1, 0,   0,      0],\
                               [0,   0,      0, 1,   t, t**2/2],\
                               [0,   0,      0, 0,   1,      t],\
-                              [0,   0,      0, 0, -.1,      1]])
+                              [0,   0,      0, 0, -.1,      1]], dtype='float64')
         self.FT = numpy.transpose(self.F)
         self.H = numpy.array([[1,0,0,0,0,0],\
-                              [0,1,0,1,0,0]])
+                              [0,0,0,1,0,0]], dtype='float64')
         self.HT = numpy.transpose(self.H)
         
         # Calculate F(sigma_t)FT + sigma_x
         M = self.F.dot(self.Sigma_t).dot(self.FT) + self.Sigma_x
         
         # Kalman Gain
-        self.gain_t = _calc_gain(M)
+        self.gain_t = self._calc_gain(M)
+        print "Gain:"
+        print self.gain_t
         
         # mu_t (Best Guess)
-        self.mu_t = _calc_mu_t(z_t)
+        self.mu_t = self._calc_mu_t(z_t)
+        print "Mu_t:"
+        print self.mu_t
         
         # Sigma_t (Uncertainty)
-        self.Sigma_t = _calc_sigma_t(M)
+        self.Sigma_t = self._calc_sigma_t(M)
+        print "Sigma_t:"
+        print self.Sigma_t
         
     
     def predict(t):
@@ -140,8 +146,13 @@ class KFilter(object):
                               [0, -.1,      1, 0,   0,      0],\
                               [0,   0,      0, 1,   t, t**2/2],\
                               [0,   0,      0, 0,   1,      t],\
-                              [0,   0,      0, 0, -.1,      1]])
+                              [0,   0,      0, 0, -.1,      1]], dtype='float64')
         return tempF.dot(self.mu_t)
+    
+    def getPosition(self):
+        return (self.mu_t[0],self.mu_t[3])
+    def getVelocity(self):
+        return (self.mu_t[1],self.mu_t[4])
         
     
 class Agent(object):
@@ -240,16 +251,20 @@ class Agent(object):
         #     calculate movement_command
         # send commands
         
-        enemy = bzrc.read_othertanks()[0]
-        z_t = numpy.array()
+        enemy = self.bzrc.get_othertanks()[0]
+        z_t = numpy.array([[numpy.float64(enemy.x)],\
+                           [numpy.float64(enemy.y)]], dtype='float64')
+        print "Time Diff: ", time_diff
+        print "z_t:"
+        print z_t
+        self.k_enemy.run(time_diff, z_t)
         
         for bot in self.bzrc.get_mytanks():
-
-            
             # Get the tank and update it with what we received from the server
             tank = self.tanks[bot.index]
             tank.update(bot)
-            
+            tank.target = self.k_enemy.getPosition()
+            tank.target_velocity = self.k_enemy.getVelocity()
             
             self.commands.append(tank.get_desired_movement_command(time_diff, 0))
 
