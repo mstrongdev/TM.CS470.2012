@@ -131,13 +131,13 @@ class KFilter(object):
         
         # mu_t (Best Guess)
         self.mu_t = self._calc_mu_t(z_t)
-        print "Mu_t:"
-        print self.mu_t
+        #print "Mu_t:"
+        #print self.mu_t
         
         # Sigma_t (Uncertainty)
         self.Sigma_t = self._calc_sigma_t(M)
-        #print "Sigma_t:"
-        #print self.Sigma_t
+        print "Sigma_t:"
+        print self.Sigma_t
         
     
     def predict(self, t):
@@ -150,9 +150,11 @@ class KFilter(object):
         return tempF.dot(self.mu_t)
     
     def getPosition(self):
-        return (self.mu_t[0],self.mu_t[3])
+        return (self.mu_t[0][0],self.mu_t[3][0])
     def getVelocity(self):
-        return (self.mu_t[1],self.mu_t[4])
+        return (self.mu_t[1][0],self.mu_t[4][0])
+    def getPosUncertainty(self):
+        return (self.Sigma_t[0][0], self.Sigma_t[3][3])
         
     
 class Agent(object):
@@ -254,9 +256,9 @@ class Agent(object):
         enemy = self.bzrc.get_othertanks()[0]
         z_t = numpy.array([[numpy.float64(enemy.x)],\
                            [numpy.float64(enemy.y)]], dtype='float64')
-        print "Time Diff: ", time_diff
-        print "z_t:"
-        print z_t
+        #print "Time Diff: ", time_diff
+        #print "z_t:"
+        #print z_t
         self.k_enemy.run(time_diff, z_t)
         
         for bot in self.bzrc.get_mytanks():
@@ -271,7 +273,8 @@ class Agent(object):
         # Send the movement commands to the server
         results = self.bzrc.do_commands(self.commands)
         
-        self.write_kalman_fields("kalman", 10, 10, 0, time_diff)
+        pos_u = self.k_enemy.getPosUncertainty()
+        self.write_kalman_fields("kalman", pos_u[0], pos_u[1], 0, time_diff)
     
 class Tank(object):
     
