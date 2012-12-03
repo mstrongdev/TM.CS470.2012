@@ -312,6 +312,34 @@ class Tank(object):
         self.angvel = tank.angvel;
         
     def estimate_firing_angle(self):
+        # Thanks, http://playtechs.blogspot.com/2007/04/aiming-at-moving-target.html
+        px = self.target[0] - self.x
+        py = self.target[1] - self.y
+        vx = self.target_velocity[0]
+        vy = self.target_velocity[1]
+        s = 100 #bullet speed
+        
+        a = s * s - (vx * vx + vy * vy)
+        b = px * vx + py * vy
+        c = px * px + py * py
+        d = b * b + a * c
+        t = 0
+        if d >= 0:
+            t = (b + math.sqrt(d)) / a
+            if t < 0:
+                print "T was less than zero?"
+                t = 0
+        
+        #prediction = self.k_enemy.predict(t)
+        #shoot_at = (prediction[0][0], prediction[3][0])
+        shoot_at = (self.target[0] + self.target_velocity[0] * t, self.target[1] + self.target_velocity[1] * t)
+        
+        angle = angle_from((self.x, self.y), shoot_at)
+        print "Time: ", t
+        print "Shoot At: ", shoot_at
+        print "Angle: ", angle
+        return angle
+        '''
         source = (self.x, self.y)
         
         # iteration state vars
@@ -326,7 +354,7 @@ class Tank(object):
         while (distance > threshold):
             # Figure out how much time must pass to travel half the distance from the bullet to the tank
             # The second part determines whether the step should be a little bit forward in time or backwards
-            time_step = (distance * .75) / bullet_speed * (1 if dist(source, bullet) < dist(source, tank) else -1)
+            time_step = (distance * .01) / bullet_speed * (1 if dist(source, bullet) < dist(source, tank) else -1)
             total_time += time_step
             #tank = (tank[0] + time_step * tank_velocity[0], tank[1] + time_step * tank_velocity[1])
             prediction = self.k_enemy.predict(total_time)
@@ -340,6 +368,7 @@ class Tank(object):
             print "Tank: ", tank
             print "Distance: ",distance
         return angle
+        '''
     
     def get_desired_movement_command(self, time_diff, maxspeed):
         # PD Controller stuff to make movement smoother
@@ -361,7 +390,7 @@ class Tank(object):
         
         proportional_gain_angle = 2.25
         #proportional_gain_speed = 1.0
-        derivative_gain_angle = 0.5
+        derivative_gain_angle = 1.5
         #derivative_gain_speed = 0.1
         
         send_angvel = proportional_gain_angle * error_angle + derivative_gain_angle * ((error_angle - self.previous_error_angle) / time_diff)
