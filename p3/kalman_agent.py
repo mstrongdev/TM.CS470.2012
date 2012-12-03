@@ -68,14 +68,14 @@ def rad2deg(n):
     
 class KFilter(object):
     # Currently assumes 6 variables in the state: x_pos,x_vel,x_acc,y_pos,y_vel,y_acc
-    def __init__(self, mu0 = numpy.zeros((6,1), dtype='float64'), Sigma0 = None, pnoise=0):
+    def __init__(self, mu0 = numpy.zeros((6,1), dtype='float64'), Sigma0 = None, pnoise=5):
         # Constants
         self.Sigma_x = numpy.array([[.1,   0,    0,   0,   0,     0],\
                                     [ 0,  .1,    0,   0,   0,     0],\
-                                    [ 0,   0,   100,  0,   0,     0],\
+                                    [ 0,   0,   10,  0,   0,     0],\
                                     [ 0,   0,    0,  .1,   0,     0],\
                                     [ 0,   0,    0,   0,  .1,     0],\
-                                    [ 0,   0,    0,   0,   0,   100]], dtype='float64')
+                                    [ 0,   0,    0,   0,   0,   10]], dtype='float64')
         self.Sigma_z = numpy.array([[pnoise**2, 0],\
                                     [0, pnoise**2]], dtype='float64')
         
@@ -109,13 +109,16 @@ class KFilter(object):
         return temp2
     
     def run(self, t, z_t):
+        print "Sigma_t pre:"
+        print self.Sigma_t
+        
         # Calculate F and H and their transposes
         self.F = numpy.array([[1,   t, t**2/2, 0,   0,      0],\
                               [0,   1,      t, 0,   0,      0],\
-                              [0, -.1,      1, 0,   0,      0],\
+                              [0, -.0,      1, 0,   0,      0],\
                               [0,   0,      0, 1,   t, t**2/2],\
                               [0,   0,      0, 0,   1,      t],\
-                              [0,   0,      0, 0, -.1,      1]], dtype='float64')
+                              [0,   0,      0, 0, -.0,      1]], dtype='float64')
         self.FT = numpy.transpose(self.F)
         self.H = numpy.array([[1,0,0,0,0,0],\
                               [0,0,0,1,0,0]], dtype='float64')
@@ -204,7 +207,7 @@ class Agent(object):
     
     def write_kalman_fields(self, file, sigma_x, sigma_y, rho, time_diff):
         self.file_write_time_accumulator += time_diff
-        if (self.file_write_time_accumulator > 1):
+        if self.file_write_time_accumulator > 1 and sigma_x > 0 and sigma_y > 0:
             self.file_write_time_accumulator = 0
             self.file_suffix += 1
             with open("{0}-{1}.gpi".format(file, self.file_suffix), 'w+') as out:
@@ -256,25 +259,30 @@ class Agent(object):
         enemy = self.bzrc.get_othertanks()[0]
         z_t = numpy.array([[numpy.float64(enemy.x)],\
                            [numpy.float64(enemy.y)]], dtype='float64')
-        #print "Time Diff: ", time_diff
-        #print "z_t:"
-        #print z_t
-        self.k_enemy.run(time_diff, z_t)
-        
-        for bot in self.bzrc.get_mytanks():
-            # Get the tank and update it with what we received from the server
-            tank = self.tanks[bot.index]
-            tank.update(bot)
-            tank.target = self.k_enemy.getPosition()
-            tank.target_velocity = self.k_enemy.getVelocity()
+        if enemy.status == "dead":
+            self.k_enemy = None
+        else:
+            if self.k_enemy == None:
+                self.k_enemy = KFilter()
+            #print "Time Diff: ", time_diff
+            #print "z_t:"
+            #print z_t
+            self.k_enemy.run(time_diff, z_t)
             
-            self.commands.append(tank.get_desired_movement_command(time_diff, 0))
+            for bot in self.bzrc.get_mytanks():
+                # Get the tank and update it with what we received from the server
+                tank = self.tanks[bot.index]
+                tank.update(bot)
+                tank.target = self.k_enemy.getPosition()
+                tank.target_velocity = self.k_enemy.getVelocity()
+                
+                self.commands.append(tank.get_desired_movement_command(time_diff, 0))
 
-        # Send the movement commands to the server
-        results = self.bzrc.do_commands(self.commands)
-        
-        pos_u = self.k_enemy.getPosUncertainty()
-        self.write_kalman_fields("kalman", pos_u[0], pos_u[1], 0, time_diff)
+            # Send the movement commands to the server
+            results = self.bzrc.do_commands(self.commands)
+            
+            pos_u = self.k_enemy.getPosUncertainty()
+            self.write_kalman_fields("kalman", pos_u[0], pos_u[1], 0, time_diff)
     
 class Tank(object):
     
@@ -290,7 +298,7 @@ class Tank(object):
         self.prev_x = self.x
         self.prev_y = self.y
         # These variables are now used to point to the currently estimated position of the enemy tank, and its current velocity (x and y components)
-        self.target = (random.randint(-400, 400), random.randint(-400, 400))
+        self.target = (0, 0)
         self.target_velocity = (0, 0)
         #print "Initial Target:", self.target
         #self.pick_point(0)
@@ -335,40 +343,14 @@ class Tank(object):
         shoot_at = (self.target[0] + self.target_velocity[0] * t, self.target[1] + self.target_velocity[1] * t)
         
         angle = angle_from((self.x, self.y), shoot_at)
-        print "Time: ", t
-        print "Shoot At: ", shoot_at
-        print "Angle: ", angle
-        return angle
-        '''
-        source = (self.x, self.y)
         
-        # iteration state vars
-        bullet = source
-        bullet_speed = 100
-        tank = self.target
-        tank_velocity = self.target_velocity
-        distance = dist(bullet, tank)
-        threshold = 5
-        angle = angle_from(source, tank)
-        total_time = 0
-        while (distance > threshold):
-            # Figure out how much time must pass to travel half the distance from the bullet to the tank
-            # The second part determines whether the step should be a little bit forward in time or backwards
-            time_step = (distance * .01) / bullet_speed * (1 if dist(source, bullet) < dist(source, tank) else -1)
-            total_time += time_step
-            #tank = (tank[0] + time_step * tank_velocity[0], tank[1] + time_step * tank_velocity[1])
-            prediction = self.k_enemy.predict(total_time)
-            tank = (prediction[0][0], prediction[3][0])
-            angle = angle_from(source, tank)
-            bullet = (self.x + total_time * math.cos(angle) * bullet_speed, self.y + total_time * math.sin(angle) * bullet_speed)
-            distance = dist(bullet, tank)
-            print "Time: ", total_time
-            print "Time Step: ", time_step
-            print "Bullet: ", bullet
-            print "Tank: ", tank
-            print "Distance: ",distance
+        print "Target:", self.target
+        print "Velocity:", self.target_velocity
+        print "Time:", t
+        print "Shoot At:", shoot_at
+        print "Angle:", angle
+        
         return angle
-        '''
     
     def get_desired_movement_command(self, time_diff, maxspeed):
         # PD Controller stuff to make movement smoother
@@ -390,7 +372,7 @@ class Tank(object):
         
         proportional_gain_angle = 2.25
         #proportional_gain_speed = 1.0
-        derivative_gain_angle = 1.5
+        derivative_gain_angle = 0.5
         #derivative_gain_speed = 0.1
         
         send_angvel = proportional_gain_angle * error_angle + derivative_gain_angle * ((error_angle - self.previous_error_angle) / time_diff)
@@ -429,6 +411,7 @@ def main():
         sys.exit(-1)
         
     #print "Running Tyler & Morgan's Super Smart Flag Capturer"
+    numpy.set_printoptions(precision=3,suppress=True)
 
     # Connect.
     #bzrc = BZRC(host, int(port), debug=True)

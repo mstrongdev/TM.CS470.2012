@@ -187,7 +187,7 @@ class Tank(object):
         self.update(tank)
         self.prev_x = self.x
         self.prev_y = self.y
-        self.target = (random.randint(-400, 400), random.randint(-400, 400))
+        self.target = (random.randint(-200, 200), random.randint(-200, 200))
         #print "Initial Target:", self.target
         #self.pick_point(0)
     
@@ -221,7 +221,7 @@ class Tank(object):
         if dist((self.x, self.y), self.target) < 20: #or (average_grid(self.agent.bel_grid, (self.x + 5 * direction[0] + 400, self.y + 5 * direction[1] + 400), 10) > .8) or (self.x == self.prev_x and self.y == self.prev_y):
             # We need a new point
             #self.pick_point(average_confidence)
-            self.target = (random.randint(-400, 400), random.randint(-400, 400))
+            self.target = (random.randint(-200, 200), random.randint(-200, 200))
         else:
             #print "no new target"
             pass
