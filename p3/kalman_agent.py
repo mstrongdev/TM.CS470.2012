@@ -80,7 +80,7 @@ class KFilter(object):
                                     [0, pnoise**2]], dtype='float64')
         
         # t-dependent
-        self.gain_t = .5
+        self.gain_t = numpy.zeros((6,2))
         self.mu_t = mu0
         if Sigma0:
             self.Sigma_t = Sigma0
@@ -126,8 +126,8 @@ class KFilter(object):
         
         # Kalman Gain
         self.gain_t = self._calc_gain(M)
-        print "Gain:"
-        print self.gain_t
+        #print "Gain:"
+        #print self.gain_t
         
         # mu_t (Best Guess)
         self.mu_t = self._calc_mu_t(z_t)
@@ -136,8 +136,8 @@ class KFilter(object):
         
         # Sigma_t (Uncertainty)
         self.Sigma_t = self._calc_sigma_t(M)
-        print "Sigma_t:"
-        print self.Sigma_t
+        #print "Sigma_t:"
+        #print self.Sigma_t
         
     
     def predict(t):
