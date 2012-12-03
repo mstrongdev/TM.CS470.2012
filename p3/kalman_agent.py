@@ -98,8 +98,8 @@ class KFilter(object):
         temp3 = temp1.dot(temp2)
         return 1/temp3
     
-    def _calc_mu_t(self):
-        temp1 = 0#what is z_t?
+    def _calc_mu_t(self, z_t):
+        temp1 = z_t - self.H.dot(self.F).dot(self.mu_t)
         temp2 = self.F.dot(self.mu_t) + self.gain_t * temp1
         return temp2
     
@@ -108,7 +108,7 @@ class KFilter(object):
         temp2 = temp1.dot(M)
         return temp2
     
-    def run(t):
+    def run(t, z_t):
         # Calculate F and H and their transposes
         self.F = numpy.array([[1,   t, t**2/2, 0,   0,      0],\
                               [0,   1,      t, 0,   0,      0],\
@@ -128,14 +128,20 @@ class KFilter(object):
         self.gain_t = _calc_gain(M)
         
         # mu_t (Best Guess)
-        self.mu_t = _calc_mu_t()
+        self.mu_t = _calc_mu_t(z_t)
         
         # Sigma_t (Uncertainty)
         self.Sigma_t = _calc_sigma_t(M)
         
     
     def predict(t):
-        pass
+        tempF = numpy.array([[1,   t, t**2/2, 0,   0,      0],\
+                              [0,   1,      t, 0,   0,      0],\
+                              [0, -.1,      1, 0,   0,      0],\
+                              [0,   0,      0, 1,   t, t**2/2],\
+                              [0,   0,      0, 0,   1,      t],\
+                              [0,   0,      0, 0, -.1,      1]])
+        return tempF.dot(self.mu_t)
         
     
 class Agent(object):
@@ -224,11 +230,21 @@ class Agent(object):
         # Reset my set of commands (we don't want to run old commands)
         self.commands = []
         
+        # ALGORITHM
+        # 
+        # Read input on enemy tanks
+        # Run kalman filter to update enemy tanks
+        # for all mytanks
+        #     update target
+        #     update target_velocity
+        #     calculate movement_command
+        # send commands
+        
+        enemy = bzrc.read_othertanks()[0]
+        z_t = numpy.array()
+        
         for bot in self.bzrc.get_mytanks():
-            # ALGORITHM
-            # 
-            # for all_tanks
-            #  
+
             
             # Get the tank and update it with what we received from the server
             tank = self.tanks[bot.index]
