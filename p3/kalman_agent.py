@@ -299,7 +299,6 @@ class Tank(object):
     def __init__(self, bzrc, agent, tank):
         self.bzrc = bzrc
         self.agent = agent
-        self.k_enemy = self.agent.k_enemy
         self.previous_error_angle = 0
         self.previous_error_speed = 0
         self.x = None
