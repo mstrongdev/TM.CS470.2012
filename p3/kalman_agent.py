@@ -207,7 +207,7 @@ class Agent(object):
     
     def write_kalman_fields(self, file, sigma_x, sigma_y, mu_x, mu_y, rho, time_diff, force = False):
         self.file_write_time_accumulator += time_diff
-        if (self.file_write_time_accumulator > .25 and sigma_x > 0 and sigma_y > 0) or force:
+        if (self.file_write_time_accumulator > .25 or force) and sigma_x > 0 and sigma_y > 0:
             self.file_write_time_accumulator = 0
             self.file_suffix += 1
             with open("{0}-{1}.gpi".format(file, self.file_suffix), 'w+') as out:
