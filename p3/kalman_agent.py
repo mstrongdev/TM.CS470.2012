@@ -109,8 +109,8 @@ class KFilter(object):
         return temp2
     
     def run(self, t, z_t):
-        print "Sigma_t pre:"
-        print self.Sigma_t
+        #print "Sigma_t pre:"
+        #print self.Sigma_t
         
         # Calculate F and H and their transposes
         self.F = numpy.array([[1,   t, t**2/2, 0,   0,      0],\
@@ -139,8 +139,8 @@ class KFilter(object):
         
         # Sigma_t (Uncertainty)
         self.Sigma_t = self._calc_sigma_t(M)
-        print "Sigma_t:"
-        print self.Sigma_t
+        #print "Sigma_t:"
+        #print self.Sigma_t
         
     
     def predict(self, t):
@@ -199,21 +199,22 @@ class Agent(object):
         
         self.file_suffix = 0
         self.file_write_time_accumulator = 0
-        #self.write_kalman_fields("test1", 10, 10, 0, 0)
-        #self.write_kalman_fields("test2", 100, 10, 0, 0)
-        #self.write_kalman_fields("test3", 10, 100, 0, 0)
-        #self.write_kalman_fields("test4", 100, 100, .5, 0)
-        #self.write_kalman_fields("test5", 100, 100, .9999, 0)
+        
+        # Write out the initial state
+        pos = self.k_enemy.getPosition()
+        pos_u = self.k_enemy.getPosUncertainty()
+        self.write_kalman_fields("kalman", pos_u[0], pos_u[1], pos[0], pos[1], 0, 0, True) # Not taking square roots of pos_u because it makes them very small all the time.
     
-    def write_kalman_fields(self, file, sigma_x, sigma_y, rho, time_diff):
+    def write_kalman_fields(self, file, sigma_x, sigma_y, mu_x, mu_y, rho, time_diff, force = False):
         self.file_write_time_accumulator += time_diff
-        if self.file_write_time_accumulator > 1 and sigma_x > 0 and sigma_y > 0:
+        if (self.file_write_time_accumulator > .25 and sigma_x > 0 and sigma_y > 0) or force:
             self.file_write_time_accumulator = 0
             self.file_suffix += 1
             with open("{0}-{1}.gpi".format(file, self.file_suffix), 'w+') as out:
                 # header
                 out.write("set xrange [-400.0: 400.0]\n")
                 out.write("set yrange [-400.0: 400.0]\n")
+                out.write("set cbrange [0.0: 2.5e-05]\n")
                 out.write("set pm3d\n")
                 out.write("set view map\n")
                 out.write("unset key\n")
@@ -237,8 +238,10 @@ class Agent(object):
                 out.write("\n")
                 out.write("sigma_x = {0}\n".format(sigma_x))
                 out.write("sigma_y = {0}\n".format(sigma_y))
+                out.write("mu_x = {0}\n".format(mu_x))
+                out.write("mu_y = {0}\n".format(mu_y))
                 out.write("rho = {0}\n".format(rho))
-                out.write("splot 1.0/(2.0 * pi * sigma_x * sigma_y * sqrt(1 - rho**2) ) * exp(-1.0/2.0 * (x**2 / sigma_x**2 + y**2 / sigma_y**2 - 2.0*rho*x*y/(sigma_x*sigma_y) ) ) with pm3d\n")
+                out.write("splot 1.0/(2.0 * pi * sigma_x * sigma_y * sqrt(1 - rho**2) ) * exp(-1.0/2.0 * ((mu_x + x)**2 / sigma_x**2 + (mu_y + y)**2 / sigma_y**2 - 2.0*rho*(mu_x + x)*(mu_y + y)/(sigma_x*sigma_y) ) ) with pm3d\n")
     
     def tick(self, time_diff):
         '''Some time has passed; decide what to do next'''
@@ -264,6 +267,10 @@ class Agent(object):
         else:
             if self.k_enemy == None:
                 self.k_enemy = KFilter()
+                # Write out the new original states
+                pos = self.k_enemy.getPosition()
+                pos_u = self.k_enemy.getPosUncertainty()
+                self.write_kalman_fields("kalman", pos_u[0], pos_u[1], pos[0], pos[1], 0, 0, True) # Not taking square roots of pos_u because it makes them very small all the time.
             #print "Time Diff: ", time_diff
             #print "z_t:"
             #print z_t
@@ -281,8 +288,11 @@ class Agent(object):
             # Send the movement commands to the server
             results = self.bzrc.do_commands(self.commands)
             
+            pos = self.k_enemy.getPosition()
             pos_u = self.k_enemy.getPosUncertainty()
-            self.write_kalman_fields("kalman", pos_u[0], pos_u[1], 0, time_diff)
+            #print "Position:", pos
+            #print "Uncertainty:", pos_u
+            self.write_kalman_fields("kalman", pos_u[0], pos_u[1], pos[0], pos[1], 0, time_diff) # Not taking square roots of pos_u because it makes them very small all the time.
     
 class Tank(object):
     
@@ -344,11 +354,11 @@ class Tank(object):
         
         angle = angle_from((self.x, self.y), shoot_at)
         
-        print "Target:", self.target
-        print "Velocity:", self.target_velocity
-        print "Time:", t
-        print "Shoot At:", shoot_at
-        print "Angle:", angle
+        #print "Target:", self.target
+        #print "Velocity:", self.target_velocity
+        #print "Time:", t
+        #print "Shoot At:", shoot_at
+        #print "Angle:", angle
         
         return angle
     
