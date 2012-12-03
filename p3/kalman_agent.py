@@ -62,18 +62,87 @@ def deg2rad(n):
 def rad2deg(n):
     return n * (180.0 / math.pi)
     
-
+class KFilter(object):
+    # Currently assumes 6 variables in the state: x_pos,x_vel,x_acc,y_pos,y_vel,y_acc
+    def __init__(self, mu0 = numpy.zeros(6), Sigma0 = None, pnoise=0):
+        # Constants
+        self.Sigma_x = numpy.array([[.1,   0,    0,   0,   0,     0],\
+                                    [ 0,  .1,    0,   0,   0,     0],\
+                                    [ 0,   0,   100,  0,   0,     0],\
+                                    [ 0,   0,    0,  .1,   0,     0],\
+                                    [ 0,   0,    0,   0,  .1,     0],\
+                                    [ 0,   0,    0,   0,   0,   100]])
+        self.Sigma_z = numpy.array([[pnoise**2, 0],\
+                                    [0, pnoise**2]])
+        
+        # t-dependent
+        self.gain_t = .5
+        self.mu_t = mu0
+        if Sigma0:
+            self.Sigma_t = Sigma0
+        else:
+            self.Sigma_t = numpy.array([[100,   0,   0,  0,   0,     0],\
+                                        [0,     .1,  0,  0,   0,     0],\
+                                        [0,     0,  .1,  0,   0,     0],\
+                                        [0,     0,  0,   100, 0,     0],\
+                                        [0,     0,  0,   0,   .1,    0],\
+                                        [0,     0,  0,   0,   0,     .1]])
+    
+    def _calc_gain(self, M):
+        temp1 = M.dot(self.HT)
+        temp2 = self.H.dot(M).dot(self.HT) + self.Sigma_z
+        temp3 = temp1.dot(temp2)
+        return 1/temp3
+    
+    def _calc_mu_t(self):
+        temp1 = 0#what is z_t?
+        temp2 = self.F.dot(self.mu_t) + self.gain_t * temp1
+        return temp2
+    
+    def _calc_sigma_t(self, M):
+        temp1 = numpy.identity(6) - self.gain_t * self.H
+        temp2 = temp1.dot(M)
+        return temp2
+    
+    def run(t):
+        # Calculate F and H and their transposes
+        self.F = numpy.array([[1,   t, t**2/2, 0,   0,      0],\
+                              [0,   1,      t, 0,   0,      0],\
+                              [0, -.1,      1, 0,   0,      0],\
+                              [0,   0,      0, 1,   t, t**2/2],\
+                              [0,   0,      0, 0,   1,      t],\
+                              [0,   0,      0, 0, -.1,      1]])
+        self.FT = numpy.transpose(self.F)
+        self.H = numpy.array([[1,0,0,0,0,0],\
+                              [0,1,0,1,0,0]])
+        self.HT = numpy.transpose(self.H)
+        
+        # Calculate F(sigma_t)FT + sigma_x
+        M = self.F.dot(self.Sigma_t).dot(self.FT) + self.Sigma_x
+        
+        # Kalman Gain
+        self.gain_t = _calc_gain(M)
+        
+        # mu_t (Best Guess)
+        self.mu_t = _calc_mu_t()
+        
+        # Sigma_t (Uncertainty)
+        self.Sigma_t = _calc_sigma_t(M)
+        
+    
+    def predict(t):
+        pass
+        
+    
 class Agent(object):
 
     def __init__(self, bzrc):
         self.bzrc = bzrc
         self.constants = self.bzrc.get_constants()
         
-        # Initialize World Map / Belief Grid
-        #init_window(int(self.constants["worldsize"]), int(self.constants["worldsize"]))
-        #self.bel_grid = numpy.array(list(list(.75 for j in range(int(self.constants["worldsize"]))) for i in range(int(self.constants["worldsize"]))))
-        #self.conf_grid = numpy.array(list(list(0.0 for j in range(int(self.constants["worldsize"]))) for i in range(int(self.constants["worldsize"]))))
-        #update_grid_display(self.conf_grid)
+        # Initialize our Enemy (as a k_filter)
+        self.k_enemy = KFilter()
+        
         
         self.commands = []
         self.tanks = {tank.index:Tank(bzrc, self, tank) for tank in self.bzrc.get_mytanks()}
@@ -171,13 +240,7 @@ class Agent(object):
             # ALGORITHM
             # 
             # for all_tanks
-            #  if should_sample()
-            #   call occgrid
-            #   update bel/conf grid
-            #  if picknewpoint()
-            #   picknewpoint()
-            #  movetopoint()
-            # 
+            #  
             
             # Get the tank and update it with what we received from the server
             tank = self.tanks[bot.index]
