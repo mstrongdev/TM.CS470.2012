@@ -140,7 +140,7 @@ class KFilter(object):
         #print self.Sigma_t
         
     
-    def predict(t):
+    def predict(self, t):
         tempF = numpy.array([[1,   t, t**2/2, 0,   0,      0],\
                               [0,   1,      t, 0,   0,      0],\
                               [0, -.1,      1, 0,   0,      0],\
@@ -278,6 +278,7 @@ class Tank(object):
     def __init__(self, bzrc, agent, tank):
         self.bzrc = bzrc
         self.agent = agent
+        self.k_enemy = self.agent.k_enemy
         self.previous_error_angle = 0
         self.previous_error_speed = 0
         self.x = None
@@ -324,10 +325,17 @@ class Tank(object):
             # The second part determines whether the step should be a little bit forward in time or backwards
             time_step = (distance * .75) / bullet_speed * (1 if dist(source, bullet) < dist(source, tank) else -1)
             total_time += time_step
-            tank = (tank[0] + time_step * tank_velocity[0], tank[1] + time_step * tank_velocity[1])
+            #tank = (tank[0] + time_step * tank_velocity[0], tank[1] + time_step * tank_velocity[1])
+            prediction = self.k_enemy.predict(total_time)
+            tank = (prediction[0][0], prediction[3][0])
             angle = angle_from(source, tank)
             bullet = (self.x + total_time * math.cos(angle) * bullet_speed, self.y + total_time * math.sin(angle) * bullet_speed)
             distance = dist(bullet, tank)
+            print "Time: ", total_time
+            print "Time Step: ", time_step
+            print "Bullet: ", bullet
+            print "Tank: ", tank
+            print "Distance: ",distance
         return angle
     
     def get_desired_movement_command(self, time_diff, maxspeed):
